@@ -33,3 +33,5 @@ deleteDepartment {id,pin} archives only a department without assigned products o
 Archived records remain for historical names and receipts; they cannot be used for new orders or product routing.
 
 Vercel authentication: every snapshot includes verified userId. POST requires ownerId matching that identity; mismatches reject before storage access. Session is verified via Supabase Auth.
+
+Public demo: `/` renders browser-local state via `lib/demo-store.ts`; it does not call `/api/pos` or expose Supabase data. Demo PIN starts at 1234 and is only a local workflow simulation. `/workspace` preserves the authenticated API mode above. Both modes use the same `lib/pos.ts` business rules. Local state does not automatically import into an account.
