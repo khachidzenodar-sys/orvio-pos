@@ -1,5 +1,7 @@
-import { env } from 'cloudflare:workers';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getUser } from '@/lib/server/auth';
+import { readStore, saveStore } from '@/lib/server/store';
+import { ServiceUnavailable, sameOrigin } from '@/lib/server/config';
+export const runtime = 'nodejs';
 import { applyAction, seedState, type PosState } from '@/lib/pos';
 type Secret = {
     salt: string;
@@ -24,42 +26,45 @@ async function secret(pin: unknown) { if (typeof pin !== 'string' || !/^\d{4,12}
 async function matches(pin: unknown, stored?: Secret) { if (typeof pin !== 'string' || !stored || pin.length > 12)
     return false; const result = await hash(pin, stored.salt); let mismatch = 0; for (let i = 0; i < result.length; i++)
     mismatch |= result.charCodeAt(i) ^ stored.hash.charCodeAt(i); return mismatch === 0; }
-function database() { if (!env.DB)
-    throw new Error('მონაცემთა ბაზა მიუწვდომელია'); return env.DB; }
-async function read(key: string): Promise<Row> { await database().prepare('INSERT OR IGNORE INTO pos_store (id,version,document) VALUES (?,0,?)').bind(key, JSON.stringify({ state: seedState(), failures: 0, blockedUntil: 0, requests: [] })).run(); const row = await database().prepare('SELECT version, document FROM pos_store WHERE id=?').bind(key).first<Row>(); if (!row)
-    throw new Error('მონაცემები მიუწვდომელია'); return row; }
-async function save(key: string, version: number, doc: Document) { const result = await database().prepare('UPDATE pos_store SET document=?,version=version+1 WHERE id=? AND version=?').bind(JSON.stringify(doc), key, version).run(); return result.meta.changes === 1; }
-const response = (doc: Document, version: number) => json({ state: doc.state, version, configured: !!doc.pin });
-export async function GET() { try {
-    const user = await getChatGPTUser();
+async function read(key: string): Promise<Row> {
+    return readStore(key, JSON.stringify({ state: seedState(), failures: 0, blockedUntil: 0, requests: [] }));
+}
+async function save(key: string, version: number, doc: Document) {
+    return saveStore(key, version, JSON.stringify(doc));
+}
+const response = (doc: Document, version: number, userId: string) => json({ state: doc.state, version, configured: !!doc.pin, userId });
+export async function GET(request: Request) { try {
+    const user = await getUser(request);
     if (!user)
         return json({ error: 'ავტორიზაცია აუცილებელია' }, 401);
     const row = await read(user.userId);
-    return response(JSON.parse(row.document), row.version);
+    return response(JSON.parse(row.document), row.version, user.userId);
 }
 catch {
     return json({ error: 'მონაცემთა ბაზასთან დაკავშირება ვერ მოხერხდა' }, 503);
 } }
 export async function POST(request: Request) {
     try {
-        const user = await getChatGPTUser();
+        const user = await getUser(request);
         if (!user)
             return json({ error: 'ავტორიზაცია აუცილებელია' }, 401);
-        const origin = request.headers.get('origin');
-        if (origin && origin !== new URL(request.url).origin)
+        if (!sameOrigin(request))
             return json({ error: 'დაუშვებელი წყარო' }, 403);
         const body = await request.json() as {
+            ownerId: string;
             action: string;
             payload: Record<string, unknown>;
             requestId: string;
             version: number;
         };
-        if (!body || typeof body.action !== 'string' || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload) || typeof body.requestId !== 'string' || body.requestId.length < 8 || body.requestId.length > 100 || !Number.isSafeInteger(body.version))
+        if (!body || typeof body.ownerId !== 'string' || !body.ownerId || typeof body.action !== 'string' || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload) || typeof body.requestId !== 'string' || body.requestId.length < 8 || body.requestId.length > 100 || !Number.isSafeInteger(body.version))
             return json({ error: 'მოთხოვნა არასწორია' }, 400);
+        if (body.ownerId !== user.userId)
+            return json({ error: 'ანგარიში შეიცვალა. განაახლეთ გვერდი.', code: 'ACCOUNT_CHANGED' }, 409);
         const row = await read(user.userId);
         const doc: Document = JSON.parse(row.document);
         if (doc.requests.includes(body.requestId))
-            return response(doc, row.version);
+            return response(doc, row.version, user.userId);
         if (row.version !== body.version)
             return json({ error: 'მონაცემები შეიცვალა. განაახლეთ და სცადეთ ხელახლა.' }, 409);
         const { action, payload } = body;
@@ -96,9 +101,10 @@ export async function POST(request: Request) {
         doc.requests.push(body.requestId);
         if (!await save(user.userId, row.version, doc))
             return json({ error: 'მონაცემები შეიცვალა. განაახლეთ და სცადეთ ხელახლა.' }, 409);
-        return response(doc, row.version + 1);
+        return response(doc, row.version + 1, user.userId);
     }
     catch (error) {
+        if (error instanceof ServiceUnavailable) return json({ error: error.message }, 503);
         return json({ error: error instanceof Error ? error.message : 'შეცდომა მოთხოვნის დამუშავებისას' }, 400);
     }
 }

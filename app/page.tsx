@@ -1,8 +1,9 @@
 'use client';
 import {useEffect,useState,useRef,FormEvent} from 'react';
+import {Login} from '@/components/login';
 import {createSerialQueue} from '@/lib/serial-queue';
 import {PosState,Order,Ticket,orderTotals,lineBalances} from '@/lib/pos';
-type Snapshot={state:PosState;version:number;configured:boolean};
+type Snapshot={userId:string;state:PosState;version:number;configured:boolean};
 type Modal={type:string;id?:string};
 const money=(n:number)=>`${(n/100).toFixed(2)} ₾`;
 const localDay=(s:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(s));
@@ -11,19 +12,20 @@ const when=(s:string)=>new Date(s).toLocaleString('ka-GE',{timeZone:'Asia/Tbilis
 const methods:Record<string,string>={cash:'ნაღდი',card:'ბარათი',other:'სხვა'};
 export default function Home(){
  const [data,setData]=useState<Snapshot|null>(null),[view,setView]=useState('tables'),[selected,setSelected]=useState(''),[zone,setZone]=useState('all'),[category,setCategory]=useState('all'),[search,setSearch]=useState(''),[dept,setDept]=useState('all'),[readOnly,setReadOnly]=useState(false),[modal,setModal]=useState<Modal|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[print,setPrint]=useState<{order?:Order;ticket?:Ticket}|null>(null),[date,setDate]=useState(''),[dateTo,setDateTo]=useState('');
+ const [needsLogin,setNeedsLogin]=useState(false);
  const [discountKind,setDiscountKind]=useState('percent'),[discountValue,setDiscountValue]=useState('');
  const latest=useRef<Snapshot|null>(null), queue=useRef(createSerialQueue()), pending=useRef(0);
- const accept=(d:Snapshot)=>{if(!latest.current||d.version>=latest.current.version){latest.current=d;setData(d);}};
- const reload=async()=>{try{const r=await fetch('/api/pos',{cache:'no-store'});const d=await r.json() as Snapshot & {error?:string};if(!r.ok)throw Error(d.error||'ჩატვირთვა ვერ მოხერხდა');accept(d);}catch(e){setError(String(e instanceof Error?e.message:e));}};
+ const accept=(d:Snapshot)=>{if(latest.current&&latest.current.userId!==d.userId){window.location.reload();return;}if(!latest.current||d.version>=latest.current.version){latest.current=d;setData(d);}};
+ const reload=async()=>{try{const r=await fetch('/api/pos',{cache:'no-store'});if(r.status===401){if(latest.current){window.location.reload();return;}setNeedsLogin(true);return;}const d=await r.json() as Snapshot & {error?:string};if(!r.ok)throw Error(d.error||'ჩატვირთვა ვერ მოხერხდა');setNeedsLogin(false);accept(d);}catch(e){setError(String(e instanceof Error?e.message:e));}};
  useEffect(()=>{reload();const d=new URLSearchParams(window.location.search).get('department');if(d){setDept(d);setView('tickets');setReadOnly(true);}},[]);
- useEffect(()=>{if(busy||modal)return;const t=setInterval(reload,8000);return()=>clearInterval(t);},[busy,modal]);
+ useEffect(()=>{if(busy||modal||needsLogin)return;const t=setInterval(reload,8000);return()=>clearInterval(t);},[busy,modal,needsLogin]);
  async function act(action:string,payload:Record<string,unknown>={}){
   if(!latest.current)return null;
   pending.current++;setBusy(true);
   return queue.current(async()=>{
    setError('');
    try{
-    const r=await fetch('/api/pos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload,version:latest.current!.version,requestId:crypto.randomUUID()})});
+    const r=await fetch('/api/pos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,payload,ownerId:latest.current!.userId,version:latest.current!.version,requestId:crypto.randomUUID()})});
     const d=await r.json() as Snapshot & {error?:string};
     if(!r.ok){await reload();throw Error(d.error||'მოქმედება ვერ შესრულდა');}
     accept(d);return d;
@@ -32,6 +34,7 @@ export default function Home(){
   });
  }
 
+ if(needsLogin)return <Login onSignedIn={reload}/>;
  if(!data)return <main className="loading"><div className="brandmark"><img src="/orvio-mark.svg" alt="ORVIO" width="52" height="52"/></div><h2>ORVIO · Restaurant POS</h2><p>{error||'იტვირთება სამუშაო სივრცე…'}</p><button onClick={reload}>ხელახლა ცდა</button></main>;
  const s=data.state,order=s.orders.find(o=>o.tableId===selected&&o.status==='open'),table=s.tables.find(t=>t.id===selected),totals=order?orderTotals(order):null;
  const activeOrders=s.orders.filter(o=>o.status==='open');
@@ -57,7 +60,7 @@ export default function Home(){
  const inPeriod=(value:string)=>{const d=localDay(value);return (!date||d>=date)&&(!dateTo||d<=dateTo);};
  const todayOrders=s.orders.filter(o=>inPeriod(o.closedAt||o.createdAt));
  const payments=s.orders.flatMap(o=>o.payments).filter(p=>inPeriod(p.createdAt));
- return <><div className="shell"><aside className="sidebar"><div className="brandmark"><img src="/orvio-mark.svg" alt="ORVIO" width="52" height="52"/></div><div className="sidebrand">ORVIO<span>RESTAURANT POS</span></div>{!readOnly&&<nav>{[['tables','▦','მაგიდები'],['menu','≡','მენიუ'],['tickets','▤','ჩეკები'],['reports','↗','ანგარიშები'],['settings','⚙','მართვა']].map(([key,icon,label])=><button key={key} className={view===key?'nav active':'nav'} onClick={()=>{setView(key);setSelected('');}}><b>{icon}</b><span>{label}</span></button>)}</nav>}<div className="sidebarfoot"><span className="dot"/>საცდელი ვერსია<small>ORVIO · 2026</small></div></aside>
+ return <><div className="shell"><aside className="sidebar"><div className="brandmark"><img src="/orvio-mark.svg" alt="ORVIO" width="52" height="52"/></div><div className="sidebrand">ORVIO<span>RESTAURANT POS</span></div>{!readOnly&&<nav>{[['tables','▦','მაგიდები'],['menu','≡','მენიუ'],['tickets','▤','ჩეკები'],['reports','↗','ანგარიშები'],['settings','⚙','მართვა']].map(([key,icon,label])=><button key={key} className={view===key?'nav active':'nav'} onClick={()=>{setView(key);setSelected('');}}><b>{icon}</b><span>{label}</span></button>)}</nav>}<button className="nav logout" disabled={busy} onClick={async()=>{try{const r=await fetch('/api/auth/logout',{method:'POST'});if(!r.ok)throw new Error('გამოსვლა ვერ მოხერხდა');window.location.assign('/');}catch(e){setError(e instanceof Error?e.message:'გამოსვლა ვერ მოხერხდა');}}}>გამოსვლა</button><div className="sidebarfoot"><span className="dot"/>საცდელი ვერსია<small>ORVIO · 2026</small></div></aside>
  <div className="workspace"><header><div><span className="eyebrow">რესტორნის სამუშაო სივრცე</span><h1>{readOnly?s.departments.find(d=>d.id===dept)?.name:view==='tables'?(selected?`მაგიდა ${table?.name}`:'მაგიდები'):view==='menu'?'მენიუს მართვა':view==='tickets'?'განყოფილებების ჩეკები':view==='reports'?'ანგარიშები':'პარამეტრები'}</h1></div><div className="headerRight"><span className="trial">საცდელი • არაფისკალური</span><span className="avatar">მ</span><div>მოლარე<small>ORVIO POS</small></div></div></header>
  {(error||notice)&&<div role="status" className={error?'banner error':'banner'}>{error||notice}<button onClick={()=>{setError('');setNotice('');}}>×</button></div>}
  {view==='tables'&&!selected&&<><div className="stats"><div><span>ყველა მაგიდა</span><strong>{s.tables.filter(t=>!t.archived).length}</strong></div><div><span><i className="dot"/> თავისუფალი</span><strong>{s.tables.filter(t=>!t.archived).length-activeOrders.length}</strong></div><div><span><i className="dot amber"/> დაკავებული</span><strong>{activeOrders.length}</strong></div><div><span>ღია ანგარიშები</span><strong>{money(activeOrders.reduce((a,o)=>a+orderTotals(o).due,0))}</strong></div></div><div className="toolbar"><div className="tabs"><button className={zone==='all'?'selected':''} onClick={()=>setZone('all')}>ყველა ზონა</button>{s.zones.map(z=><button key={z.id} className={zone===z.id?'selected':''} onClick={()=>setZone(z.id)}>{z.name}</button>)}</div></div><div className="sectionlabel">აირჩიეთ მაგიდა <span>შეკვეთის გასახსნელად</span></div><div className="tablegrid">{s.tables.filter(t=>!t.archived&&(zone==='all'||t.zoneId===zone)).map(t=>{const o=activeOrders.find(o=>o.tableId===t.id);return <button disabled={busy} key={t.id} className={`tablecard ${o?'occupied':''}`} onClick={()=>chooseTable(t.id)}><div className="tabletop"><span>{s.zones.find(z=>z.id===t.zoneId)?.name}</span><span className={`badge ${o?'warm':''}`}>{o?'დაკავებული':'თავისუფალი'}</span></div><div className="tableShape"><span>{t.name}</span></div><div className="tablebottom"><b>{o?money(orderTotals(o).due):'ახალი შეკვეთა'}</b><span>{o?`${o.lines.reduce((a,l)=>a+l.quantity-l.voidQuantity,0)} პოზიცია`:'→'}</span></div></button>})}</div><p className="muted">მაგიდების მართვა ხელმისაწვდომია მენეჯერისთვის „მართვის“ განყოფილებაში.</p></>}

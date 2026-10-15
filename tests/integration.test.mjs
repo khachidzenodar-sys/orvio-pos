@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import { webcrypto } from 'node:crypto';
 
-// Run real route/domain code without a network server. D1 and platform auth are
-// narrow in-memory doubles; production Cloudflare SQL/auth remain deployment QA.
+// Real route/domain code with narrow storage/auth doubles. Supabase adapter
+// HTTP contract tests live in backend.test.mjs; hosted wiring needs deployment QA.
 function evaluate(path, imports = {}) {
   const source = ts.transpileModule(fs.readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const module = { exports: {} };
@@ -19,20 +19,20 @@ const domain = evaluate('../lib/pos.ts');
 function harness() {
   const rows = new Map();
   let currentUser = { userId: 'cashier-A' };
-  const DB = { prepare(sql) { return { bind(...args) { return {
-    async run() {
-      if (sql.startsWith('INSERT OR IGNORE')) { if (!rows.has(args[0])) rows.set(args[0], { version: 0, document: args[1] }); return { meta: { changes: 1 } }; }
-      if (sql.startsWith('UPDATE pos_store')) { const row = rows.get(args[1]); if (!row || row.version !== args[2]) return { meta: { changes: 0 } }; rows.set(args[1], { version: row.version + 1, document: args[0] }); return { meta: { changes: 1 } }; }
-      throw new Error(`Unexpected SQL: ${sql}`);
+  const api = evaluate('../app/api/pos/route.ts', {
+    '@/lib/server/auth': { getUser: async () => currentUser },
+    '@/lib/server/config': { ServiceUnavailable: class extends Error {}, sameOrigin: request => request.headers.get('origin') === new URL(request.url).origin },
+    '@/lib/server/store': {
+      async readStore(key, document) { if (!rows.has(key)) rows.set(key, {version:0, document}); return structuredClone(rows.get(key)); },
+      async saveStore(key, version, document) { const row=rows.get(key); if (!row || row.version!==version) return false; rows.set(key,{version:version+1,document}); return true; }
     },
-    async first() { assert.match(sql, /^SELECT version, document/); return structuredClone(rows.get(args[0]) ?? null); }
-  }; } }; } };
-  const api = evaluate('../app/api/pos/route.ts', { 'cloudflare:workers': { env: { DB } }, '@/app/chatgpt-auth': { getChatGPTUser: async () => currentUser }, '@/lib/pos': domain });
-  const post = (action, payload = {}, version = rows.get(currentUser?.userId)?.version ?? 0, requestId = webcrypto.randomUUID(), origin = 'https://pos.test') => api.POST(new Request('https://pos.test/api/pos', { method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify({ action, payload, version, requestId }) }));
+    '@/lib/pos': domain
+  });
+  const post = (action, payload = {}, version = rows.get(currentUser?.userId)?.version ?? 0, requestId = webcrypto.randomUUID(), origin = 'https://pos.test', ownerId = currentUser?.userId) => api.POST(new Request('https://pos.test/api/pos', { method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify({ action, payload, version, requestId, ownerId }) }));
   return { api, post, rows, setUser(value) { currentUser = value; } };
 }
 
-test('GET and POST require authenticated identity before touching D1', async () => {
+test('GET and POST require authenticated identity before touching storage', async () => {
   const h = harness(); h.setUser(null);
   assert.equal((await h.api.GET()).status, 401);
   assert.equal((await h.post('openOrder', { tableId: 'table-1' })).status, 401);
@@ -53,7 +53,7 @@ test('cross-origin writes are rejected without mutation', async () => {
 test('PIN setup hashes secret, excludes all secret material from API, rejects replacement', async () => {
   const h = harness(); const response = await h.post('setupPin', { pin: '135790' });
   const body = await response.json(); assert.equal(response.status, 200); assert.equal(body.configured, true);
-  assert.deepEqual(Object.keys(body).sort(), ['configured', 'state', 'version']);
+  assert.deepEqual(Object.keys(body).sort(), ['configured', 'state', 'userId', 'version']);
   const doc = JSON.parse(h.rows.get('cashier-A').document);
   assert.match(doc.pin.hash, /^[a-f0-9]{64}$/); assert.match(doc.pin.salt, /^[a-f0-9]{32}$/);
   assert.ok(!h.rows.get('cashier-A').document.includes('135790'));
@@ -135,4 +135,27 @@ test('management writes require manager PIN and archive safely', async () => {
   assert.equal(state.tables.find(t=>t.id==='table-1').archived,true);
   assert.equal(state.orders.length,1,'historical order retained');
   assert.notEqual((await m.post('openOrder',{tableId:'table-1'})).status,200);
+});
+
+
+test('queued action from a prior account cannot mutate a new account even at matching version', async () => {
+  const h = harness();
+  const original = await (await h.api.GET()).json();
+  assert.equal(original.userId, 'cashier-A');
+  h.setUser({userId:'cashier-B'});
+  const result = await h.post('openOrder', {tableId:'table-1'}, original.version, webcrypto.randomUUID(), 'https://pos.test', original.userId);
+  assert.equal(result.status,409);
+  assert.equal((await result.json()).code,'ACCOUNT_CHANGED');
+  assert.equal(h.rows.has('cashier-B'),false,'reject before reading/creating B storage');
+  assert.equal(JSON.parse(h.rows.get('cashier-A').document).state.orders.length,0);
+});
+
+test('mutation ownerId is required and must be a nonempty string', async () => {
+  const h = harness();
+  for (const ownerId of ['', null, 12]) {
+    assert.equal((await h.post('openOrder', {tableId:'table-1'}, 0, webcrypto.randomUUID(), 'https://pos.test', ownerId)).status,400);
+  }
+  const request = new Request('https://pos.test/api/pos', {method:'POST',headers:{origin:'https://pos.test','Content-Type':'application/json'},body:JSON.stringify({action:'openOrder',payload:{tableId:'table-1'},version:0,requestId:webcrypto.randomUUID()})});
+  assert.equal((await h.api.POST(request)).status,400);
+  assert.equal(h.rows.size,0);
 });

@@ -31,3 +31,5 @@ Management: saveTable, saveZone, saveDepartment require payload.pin (manager PIN
 deleteTable {id,pin} archives only a table without an open order.
 deleteDepartment {id,pin} archives only a department without assigned products or active open-order lines.
 Archived records remain for historical names and receipts; they cannot be used for new orders or product routing.
+
+Vercel authentication: every snapshot includes verified userId. POST requires ownerId matching that identity; mismatches reject before storage access. Session is verified via Supabase Auth.
