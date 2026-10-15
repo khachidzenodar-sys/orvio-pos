@@ -16,17 +16,27 @@ const number = (v:unknown) => typeof v==='number' && Number.isSafeInteger(v) && 
 const date = (v:unknown) => typeof v==='string' && Number.isFinite(Date.parse(v));
 const records = (v:unknown,check:(r:Record<string,unknown>)=>boolean):boolean => Array.isArray(v) && v.every(r=>isObject(r)&&check(r));
 const identity = (r:Record<string,unknown>) => typeof r.id==='string' && typeof r.name==='string';
+const optionText = (v:unknown,max=100):v is string => typeof v==='string'&&v.length>0&&v===v.trim()&&v.length<=max;
+const quickNotes = (v:unknown) => v===undefined || (Array.isArray(v)&&v.length<=20&&v.every(note=>optionText(note))&&new Set(v).size===v.length);
+const addons = (v:unknown) => v===undefined || (Array.isArray(v)&&v.length<=20&&records(v,r=>optionText(r.id,80)&&optionText(r.name)&&number(r.price)&&Number(r.price)>0&&Number(r.price)<=100000000)&&new Set(v.map(a=>a.id)).size===v.length);
+const lineOptions = (r:Record<string,unknown>) => {
+ if(!addons(r.addons)||(r.basePrice!==undefined&&!number(r.basePrice)))return false;
+ const extras = (r.addons as {price:number}[]|undefined)??[];
+ if(r.basePrice===undefined)return extras.length===0;
+ const composed=Number(r.basePrice)+extras.reduce((sum,addon)=>sum+addon.price,0);
+ return Number.isSafeInteger(composed)&&r.price===composed;
+};
 // Local data may be cleared or corrupted by browser tools. Reject a broken
 // document explicitly rather than rendering it or silently replacing history.
 function validState(v:unknown):v is PosState {
  if(!isObject(v))return false;
  return records(v.departments,identity) && records(v.zones,identity)
   && records(v.tables,r=>identity(r)&&typeof r.zoneId==='string')
-  && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean')
+  && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean'&&quickNotes(r.quickNotes)&&addons(r.addons))
   && records(v.orders,r=>typeof r.id==='string'&&typeof r.tableId==='string'&&['open','closed'].includes(String(r.status))&&date(r.createdAt)&&(r.closedAt===undefined||date(r.closedAt))&&(r.discountAmount===undefined||number(r.discountAmount))&&(r.receiptPrintCount===undefined||number(r.receiptPrintCount))&&typeof r.discountPercent==='number'&&Number.isFinite(r.discountPercent)
-   && records(r.lines,l=>identity(l)&&typeof l.productId==='string'&&number(l.price)&&number(l.quantity)&&number(l.voidQuantity)&&number(l.sentQuantity)&&typeof l.note==='string'&&strings(l.departmentIds))
+   && records(r.lines,l=>identity(l)&&typeof l.productId==='string'&&number(l.price)&&number(l.quantity)&&number(l.voidQuantity)&&number(l.sentQuantity)&&typeof l.note==='string'&&strings(l.departmentIds)&&lineOptions(l))
    && records(r.payments,p=>typeof p.id==='string'&&['cash','card','other'].includes(String(p.method))&&number(p.amount)&&date(p.createdAt)&&records(p.allocations,a=>typeof a.lineId==='string'&&number(a.amount))))
-  && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'))
+  && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
   && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string');
 }
 function fresh():DemoDocument {

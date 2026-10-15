@@ -35,3 +35,12 @@ Archived records remain for historical names and receipts; they cannot be used f
 Vercel authentication: every snapshot includes verified userId. POST requires ownerId matching that identity; mismatches reject before storage access. Session is verified via Supabase Auth.
 
 Public demo: `/` renders browser-local state via `lib/demo-store.ts`; it does not call `/api/pos` or expose Supabase data. Demo PIN starts at 1234 and is only a local workflow simulation. `/workspace` preserves the authenticated API mode above. Both modes use the same `lib/pos.ts` business rules. Local state does not automatically import into an account.
+
+Quick notes and paid add-ons:
+- Product.quickNotes?: string[]; Product.addons?: {id,name,price}[] (integer tetri, per one product unit).
+- getProductOptions(product) returns configured choices, or defaults for exact legacy seed product identities. Explicit empty arrays disable defaults. Existing orders are never migrated/repriced.
+- saveProduct accepts optional quickNotes and addons arrays. Existing addon IDs stay stable. Omitted options preserve existing configuration.
+- addItem accepts optional addonIds:string[], quickNotes:string[], plus the existing free-text note and quantity. The domain resolves IDs to product configuration and computes the price itself. Unknown/duplicate choices reject. Client-supplied add-on prices do not determine the charge.
+- Line.price remains the complete unit price; optional Line.basePrice and Line.addons contain historical snapshots. Quantity multiplies the complete price. Financial totals, voids, discounts and payment allocation use Line.price.
+- Selected quick notes are canonicalized and combined with free text into Line.note. Notes do not change the price. Identical variants group regardless of selection order; different options, option prices or base prices stay separate.
+- Ticket lines may carry their own addons snapshot. Sending/canceling copies historical choices. Kitchen displays and kitchen printouts show paid-addon names and preparation notes without prices. Cashier receipts show the base price and selected paid add-ons with prices.

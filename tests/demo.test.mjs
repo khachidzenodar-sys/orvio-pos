@@ -244,3 +244,67 @@ test('invalid demo transitions preserve the stored state and public snapshots co
   assert.ok(!snapshot.includes('service_role'));
   assert.equal(networkCalls, 0);
 });
+
+test('configured add-ons and quick notes survive local reload with original sale/ticket snapshots', async () => {
+  const h = harness();
+  const orderId = await opened(h);
+  const addon = {id: 'cheese', name: 'დამატებითი ყველი', price: 200};
+  const product = (await h.read()).state.products[0];
+  await h.act('saveProduct', {...product, quickNotes: ['ხახვის გარეშე'], addons: [addon]});
+  await h.act('addItem', {orderId, productId: product.id, quantity: 2, addonIds: ['cheese'], quickNotes: ['ხახვის გარეშე']});
+  const sent = await h.act('sendOrder', {orderId});
+  const reloaded = await createDemoStore(h.storage).read();
+  assert.deepEqual(reloaded, sent);
+  assert.equal(domain.orderTotals(reloaded.state.orders[0]).total, 4000);
+  assert.deepEqual(reloaded.state.orders[0].lines[0].addons, [addon]);
+  assert.deepEqual(reloaded.state.tickets[0].lines[0].addons, [addon]);
+  await h.act('saveProduct', {...product, name: 'სხვა კერძი', price: 9999, quickNotes: [], addons: []});
+  const edited = await createDemoStore(h.storage).read();
+  assert.deepEqual(edited.state.orders, sent.state.orders);
+  assert.deepEqual(edited.state.tickets, sent.state.tickets);
+  assert.equal(networkCalls, 0);
+});
+
+test('legacy local documents without option fields remain readable and plain lines continue grouping', async () => {
+  const h = harness();
+  const orderId = await opened(h);
+  await h.act('addItem', {orderId, productId: 'product-1', quantity: 2, note: 'ძველი შენიშვნა'});
+  await h.act('sendOrder', {orderId});
+  const document = JSON.parse(h.storage.getItem(DEMO_STORAGE_KEY));
+  for (const product of document.state.products) {delete product.quickNotes; delete product.addons;}
+  for (const line of document.state.orders[0].lines) {delete line.addons; delete line.basePrice;}
+  for (const ticket of document.state.tickets) for (const line of ticket.lines) delete line.addons;
+  h.storage.setItem(DEMO_STORAGE_KEY, JSON.stringify(document));
+  const store = createDemoStore(h.storage);
+  const original = await store.read();
+  assert.equal(original.state.orders[0].lines[0].note, 'ძველი შენიშვნა');
+  const updated = await store.act('addItem', {orderId, productId: 'product-1', quantity: 1, note: 'ძველი შენიშვნა'}, original);
+  assert.equal(updated.state.orders[0].lines.length, 1);
+  assert.equal(updated.state.orders[0].lines[0].quantity, 3);
+  assert.equal(domain.orderTotals(updated.state.orders[0]).total, 5400);
+  assert.equal(networkCalls, 0);
+});
+
+test('malformed optional catalog and sale snapshots fail reload without silently resetting saved history', async () => {
+  const h = harness();
+  const orderId = await opened(h);
+  await h.act('addItem', {orderId, productId: 'product-1', quantity: 1, addonIds: ['extra-cheese']});
+  await h.act('sendOrder', {orderId});
+  const valid = h.storage.getItem(DEMO_STORAGE_KEY);
+  const corruptions = [
+    doc => {doc.state.products[0].addons = [{id: 'bad', name: 'bad', price: -1}];},
+    doc => {doc.state.products[0].quickNotes = [7];},
+    doc => {doc.state.orders[0].lines[0].basePrice = -1;},
+    doc => {doc.state.orders[0].lines[0].addons = [{id: 'bad', name: 'bad', price: 1.5}];},
+    doc => {doc.state.orders[0].lines[0].price = 1;},
+    doc => {doc.state.tickets[0].lines[0].addons = 'not-an-array';},
+  ];
+  for (const corrupt of corruptions) {
+    const document = JSON.parse(valid);
+    corrupt(document);
+    const raw = JSON.stringify(document);
+    h.storage.setItem(DEMO_STORAGE_KEY, raw);
+    await assert.rejects(createDemoStore(h.storage).read());
+    assert.equal(h.storage.getItem(DEMO_STORAGE_KEY), raw);
+  }
+});

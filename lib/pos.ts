@@ -7,6 +7,12 @@ export type Zone = Department;
 export type Table = Department & {
     zoneId: string;
 };
+// Prices throughout the POS are integer tetri, including each add-on snapshot.
+export type Addon = {
+    id: string;
+    name: string;
+    price: number;
+};
 export type Product = {
     id: string;
     name: string;
@@ -14,12 +20,16 @@ export type Product = {
     price: number;
     departmentIds: string[];
     active: boolean;
+    quickNotes?: string[];
+    addons?: Addon[];
 };
 export type Line = {
     id: string;
     productId: string;
     name: string;
     price: number;
+    basePrice?: number;
+    addons?: Addon[];
     quantity: number;
     departmentIds: string[];
     note: string;
@@ -61,6 +71,7 @@ export type Ticket = {
         name: string;
         quantity: number;
         note: string;
+        addons?: Addon[];
     }[];
     printCount: number;
 };
@@ -80,6 +91,28 @@ export type PosState = {
     audit: Audit[];
 };
 const id = () => crypto.randomUUID();
+const seedOptions: Record<string, {name: string; quickNotes: string[]; addons: Addon[]}> = {
+    'product-1': {name: 'ხაჭაპური', quickNotes: ['კარგად დაბრაწული', 'დაჭრის გარეშე'], addons: [{id: 'extra-cheese', name: 'დამატებითი ყველი', price: 200}]},
+    'product-2': {name: 'ცეზარი ქათმით', quickNotes: ['სოუსი ცალკე', 'კრუტონების გარეშე', 'ხახვის გარეშე'], addons: [{id: 'extra-chicken', name: 'დამატებითი ქათამი', price: 400}, {id: 'extra-cheese', name: 'დამატებითი ყველი', price: 200}]},
+    'product-3': {name: 'პასტა ალფრედო', quickNotes: ['პილპილის გარეშე', 'სოუსი ცალკე'], addons: [{id: 'extra-cheese', name: 'დამატებითი ყველი', price: 200}]},
+    'product-4': {name: 'კარტოფილი ფრი', quickNotes: ['მარილის გარეშე', 'სოუსი ცალკე'], addons: [{id: 'extra-sauce', name: 'დამატებითი სოუსი', price: 150}]},
+    'product-5': {name: 'ამერიკანო', quickNotes: ['შაქარი ცალკე', 'უშაქროდ'], addons: [{id: 'milk', name: 'რძე', price: 200}]},
+    'product-6': {name: 'კაპუჩინო', quickNotes: ['შაქარი ცალკე', 'უშაქროდ'], addons: []},
+    'product-7': {name: 'ასკილის ლიმონათი', quickNotes: ['ყინულის გარეშე', 'ყინული ცალკე'], addons: []},
+    'product-8': {name: 'წყალი', quickNotes: ['ცივი', 'ოთახის ტემპერატურის'], addons: []},
+    'product-9': {name: 'ჩიზქეიქი', quickNotes: ['სოუსი ცალკე'], addons: []},
+    'product-10': {name: 'კრუასანი', quickNotes: ['შეთბობით', 'შეთბობის გარეშე'], addons: []},
+};
+// Old demo documents gain examples lazily, without replacing any saved orders.
+// Matching both ID and name prevents examples leaking into custom products.
+// Explicit empty arrays let a manager remove the examples permanently.
+export function getProductOptions(product: Product): {quickNotes: string[]; addons: Addon[]} {
+    const defaults = seedOptions[product.id]?.name === product.name ? seedOptions[product.id] : undefined;
+    return {
+        quickNotes: [...(product.quickNotes ?? defaults?.quickNotes ?? [])],
+        addons: (product.addons ?? defaults?.addons ?? []).map(addon => ({...addon})),
+    };
+}
 export function seedState(): PosState { return { departments: [{ id: 'kitchen', name: 'სამზარეულო' }, { id: 'bar', name: 'ბარი' }, { id: 'pastry', name: 'საკონდიტრო' }], zones: [{ id: 'hall', name: 'დარბაზი' }, { id: 'terrace', name: 'ტერასა' }], tables: Array.from({ length: 12 }, (_, i) => ({ id: `table-${i + 1}`, name: `${i + 1}`, zoneId: i < 8 ? 'hall' : 'terrace' })), products: [['ხაჭაპური', 'კერძები', 1800, 'kitchen'], ['ცეზარი ქათმით', 'სალათები', 2400, 'kitchen'], ['პასტა ალფრედო', 'კერძები', 2600, 'kitchen'], ['კარტოფილი ფრი', 'გარნირები', 900, 'kitchen'], ['ამერიკანო', 'ყავა', 600, 'bar'], ['კაპუჩინო', 'ყავა', 800, 'bar'], ['ასკილის ლიმონათი', 'სასმელები', 1000, 'bar'], ['წყალი', 'სასმელები', 400, 'bar'], ['ჩიზქეიქი', 'დესერტები', 1200, 'pastry'], ['კრუასანი', 'დესერტები', 700, 'pastry']].map((p, i) => ({ id: `product-${i + 1}`, name: String(p[0]), category: String(p[1]), price: Number(p[2]), departmentIds: [String(p[3])], active: true })), orders: [], tickets: [], audit: [] }; }
 export function orderTotals(order: Order) { const subtotal = order.lines.reduce((a, l) => a + l.price * (l.quantity - l.voidQuantity), 0); const discount = order.discountAmount ?? Math.round(subtotal * order.discountPercent / 100); const total = subtotal - discount; const paid = order.payments.reduce((a, p) => a + p.amount, 0); return { subtotal, discount, total, paid, due: total - paid }; }
 function proportion(a: number, b: number, den: number) { if (!den)
@@ -89,6 +122,36 @@ function assert(value: unknown, message: string): asserts value { if (!value)
     throw new Error(message); }
 function text(value: unknown, label: string) { assert(typeof value === 'string' && value.trim().length > 0 && value.length <= 500, label); return value.trim(); }
 function integer(value: unknown, min = 1) { assert(typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= 100000000, 'რაოდენობა ან თანხა არასწორია'); return value; }
+function optionText(value: unknown, label: string, maxLength = 100) {
+    const valueText = text(value, label);
+    assert(valueText.length <= maxLength, label);
+    return valueText;
+}
+function quickNoteConfig(value: unknown): string[] {
+    assert(Array.isArray(value) && value.length <= 20, 'სწრაფი შენიშვნების რაოდენობა უნდა იყოს მაქსიმუმ 20');
+    const notes = value.map(note => optionText(note, 'შენიშვნა უნდა შეიცავდეს 1–100 სიმბოლოს'));
+    assert(new Set(notes).size === notes.length, 'სწრაფი შენიშვნა მეორდება');
+    return notes;
+}
+function addonConfig(value: unknown): Addon[] {
+    assert(Array.isArray(value) && value.length <= 20, 'დანამატების რაოდენობა უნდა იყოს მაქსიმუმ 20');
+    const addons = value.map(raw => {
+        assert(raw && typeof raw === 'object' && !Array.isArray(raw), 'დანამატი არასწორია');
+        const addon = raw as Record<string, unknown>;
+        return {id: optionText(addon.id, 'დანამატის კოდი არასწორია', 80), name: optionText(addon.name, 'დანამატის სახელი უნდა შეიცავდეს 1–100 სიმბოლოს'), price: integer(addon.price)};
+    });
+    assert(new Set(addons.map(addon => addon.id)).size === addons.length, 'დანამატის კოდი მეორდება');
+    return addons;
+}
+function selectedStrings(value: unknown, message: string): string[] {
+    if (value === undefined) return [];
+    assert(Array.isArray(value) && value.length <= 20 && value.every(item => typeof item === 'string'), message);
+    assert(new Set(value).size === value.length, message);
+    return value as string[];
+}
+function sameAddons(left: Addon[] = [], right: Addon[] = []) {
+    return left.length === right.length && left.every((addon, index) => addon.id === right[index].id && addon.name === right[index].name && addon.price === right[index].price);
+}
 // Manager authorization is verified in the server route immediately before this pure transition.
 export function applyAction(original: PosState, action: string, p: Record<string, unknown>, manager = false, now = new Date().toISOString()): PosState {
     const s = structuredClone(original);
@@ -101,7 +164,7 @@ export function applyAction(original: PosState, action: string, p: Record<string
     }[], type: 'order' | 'cancel') => { for (const d of s.departments) {
         const matching = lines.filter(x => x.quantity > 0 && x.line.departmentIds.includes(d.id));
         if (matching.length)
-            s.tickets.push({ id: id(), orderId: o.id, tableId: o.tableId, tableName: s.tables.find(t => t.id === o.tableId)?.name || o.tableId, departmentId: d.id, type, createdAt: now, lines: matching.map(x => ({ lineId: x.line.id, name: x.line.name, quantity: x.quantity, note: x.line.note })), printCount: 0 });
+            s.tickets.push({ id: id(), orderId: o.id, tableId: o.tableId, tableName: s.tables.find(t => t.id === o.tableId)?.name || o.tableId, departmentId: d.id, type, createdAt: now, lines: matching.map(x => ({ lineId: x.line.id, name: x.line.name, quantity: x.quantity, note: x.line.note, ...(x.line.addons ? {addons: x.line.addons.map(addon => ({...addon}))} : {}) })), printCount: 0 });
     } };
     switch (action) {
         case 'openOrder': {
@@ -124,12 +187,24 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const prod = s.products.find(x => x.id === p.productId && x.active);
             assert(prod, 'პროდუქტი ვერ მოიძებნა');
             const quantity = integer(p.quantity);
-            const note = typeof p.note === 'string' ? p.note.slice(0, 500) : '';
-            const existing = o.lines.find(l => l.productId === prod.id && l.name === prod.name && l.price === prod.price && l.note === note && l.quantity > l.voidQuantity && l.departmentIds.length === prod.departmentIds.length && l.departmentIds.every(d => prod.departmentIds.includes(d)));
+            const options = getProductOptions(prod);
+            const addonIds = selectedStrings(p.addonIds, 'აირჩიეთ სწორი, არაგამეორებული დანამატები');
+            const quickNotes = selectedStrings(p.quickNotes, 'აირჩიეთ სწორი, არაგამეორებული შენიშვნები');
+            assert(addonIds.every(addonId => options.addons.some(addon => addon.id === addonId)), 'დანამატი ვერ მოიძებნა');
+            assert(quickNotes.every(note => options.quickNotes.includes(note)), 'სწრაფი შენიშვნა ვერ მოიძებნა');
+            // Catalog order makes differently ordered selections equivalent.
+            const addons = options.addons.filter(addon => addonIds.includes(addon.id));
+            assert(p.note === undefined || typeof p.note === 'string', 'შენიშვნა არასწორია');
+            const freeNote = (p.note as string | undefined) ?? '';
+            const note = [...options.quickNotes.filter(note => quickNotes.includes(note)), freeNote].filter(Boolean).join('; ');
+            assert(note.length <= 500, 'შენიშვნა უნდა შეიცავდეს მაქსიმუმ 500 სიმბოლოს');
+            const basePrice = integer(prod.price, 0);
+            const price = integer(addons.reduce((sum, addon) => sum + integer(addon.price), basePrice), 0);
+            const existing = o.lines.find(l => l.productId === prod.id && l.name === prod.name && l.price === price && (l.basePrice ?? l.price) === basePrice && sameAddons(l.addons, addons) && l.note === note && l.quantity > l.voidQuantity && l.departmentIds.length === prod.departmentIds.length && l.departmentIds.every(d => prod.departmentIds.includes(d)));
             if (existing) {
                 existing.quantity = integer(existing.quantity + quantity);
             } else {
-                o.lines.push({ id: id(), productId: prod.id, name: prod.name, price: prod.price, quantity, departmentIds: [...prod.departmentIds], note, sentQuantity: 0, voidQuantity: 0 });
+                o.lines.push({ id: id(), productId: prod.id, name: prod.name, price, basePrice, addons, quantity, departmentIds: [...prod.departmentIds], note, sentQuantity: 0, voidQuantity: 0 });
             }
             break;
         }
@@ -257,8 +332,12 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const name = text(p.name, 'მიუთითეთ სახელი'), category = text(p.category, 'მიუთითეთ კატეგორია'), price = integer(p.price, 0);
             assert(Array.isArray(p.departmentIds) && p.departmentIds.length && p.departmentIds.every(x => typeof x === 'string' && s.departments.some(d => d.id === x && !d.archived)), 'აირჩიეთ განყოფილებები');
             assert(typeof p.active === 'boolean', 'აქტიურობა არასწორია');
-            const value = { id: typeof p.id === 'string' ? p.id : id(), name, category, price, departmentIds: [...new Set(p.departmentIds as string[])], active: p.active };
-            const idx = s.products.findIndex(x => x.id === value.id);
+            const productId = typeof p.id === 'string' ? p.id : id();
+            const idx = s.products.findIndex(x => x.id === productId);
+            const previous = idx >= 0 ? getProductOptions(s.products[idx]) : {quickNotes: [], addons: []};
+            const value: Product = { id: productId, name, category, price, departmentIds: [...new Set(p.departmentIds as string[])], active: p.active,
+                quickNotes: p.quickNotes === undefined ? previous.quickNotes : quickNoteConfig(p.quickNotes),
+                addons: p.addons === undefined ? previous.addons : addonConfig(p.addons) };
             if (idx >= 0)
                 s.products[idx] = value;
             else
@@ -318,6 +397,12 @@ export function applyAction(original: PosState, action: string, p: Record<string
         default: throw new Error('უცნობი მოქმედება');
     }
     for (const o of s.orders) {
+        let subtotal = 0;
+        for (const line of o.lines) {
+            const lineTotal = line.price * (line.quantity - line.voidQuantity);
+            subtotal += lineTotal;
+            assert(Number.isSafeInteger(lineTotal) && Number.isSafeInteger(subtotal), 'თანხა დასაშვებ ზღვარს აღემატება');
+        }
         const totals = orderTotals(o);
         assert(Object.values(totals).every(Number.isSafeInteger), 'თანხა დასაშვებ ზღვარს აღემატება');
         assert(totals.due >= 0, 'თანხის ბალანსი არასწორია');

@@ -159,3 +159,47 @@ test('mutation ownerId is required and must be a nonempty string', async () => {
   assert.equal((await h.api.POST(request)).status,400);
   assert.equal(h.rows.size,0);
 });
+
+test('actual POS route prices selected add-ons from the catalog and persists department snapshots', async () => {
+  const h = harness();
+  const addon = {id: 'cheese', name: 'დამატებითი ყველი', price: 200};
+  await h.post('saveProduct', {id: 'configured-dish', name: 'ტესტის კერძი', category: 'კერძები', price: 1800,
+    departmentIds: ['kitchen', 'bar'], active: true, quickNotes: ['ხახვის გარეშე'], addons: [addon]});
+  const opened = await (await h.post('openOrder', {tableId: 'table-1'})).json();
+  const orderId = opened.state.orders[0].id;
+  const requestId = webcrypto.randomUUID();
+  const version = opened.version;
+  const payload = {orderId, productId: 'configured-dish', quantity: 2, addonIds: ['cheese'],
+    quickNotes: ['ხახვის გარეშე'], price: 1, basePrice: 1, addons: [{...addon, price: 0}]};
+  let response = await h.post('addItem', payload, version, requestId);
+  assert.equal(response.status, 200);
+  let body = await response.json();
+  assert.equal(domain.orderTotals(body.state.orders[0]).total, 4000);
+  assert.equal(body.state.orders[0].lines[0].price, 2000);
+  assert.deepEqual(body.state.orders[0].lines[0].addons, [addon]);
+  response = await h.post('addItem', payload, version, requestId);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).state.orders[0].lines[0].quantity, 2, 'retried selected variant must not be duplicated');
+  body = await (await h.post('sendOrder', {orderId})).json();
+  assert.equal(body.state.tickets.length, 2);
+  assert.ok(body.state.tickets.every(t => t.lines[0].quantity === 2 && t.lines[0].note === 'ხახვის გარეშე'));
+  assert.deepEqual(body.state.tickets.map(t => t.lines[0].addons), [[addon], [addon]]);
+  assert.deepEqual((await (await h.api.GET()).json()).state, body.state);
+});
+
+test('route rejects invalid selected option IDs and catalog data without committing state/version', async () => {
+  const h = harness();
+  const opened = await (await h.post('openOrder', {tableId: 'table-1'})).json();
+  const orderId = opened.state.orders[0].id;
+  for (const [action, payload] of [
+    ['addItem', {orderId, productId: 'product-1', quantity: 1, addonIds: ['not-configured']}],
+    ['addItem', {orderId, productId: 'product-1', quantity: 1, addonIds: ['extra-cheese', 'extra-cheese']}],
+    ['addItem', {orderId, productId: 'product-1', quantity: 1, quickNotes: ['not-configured']}],
+    ['saveProduct', {...opened.state.products[0], addons: [{id: 'bad', name: 'bad', price: -1}]}],
+  ]) {
+    const before = structuredClone(h.rows.get('cashier-A'));
+    const response = await h.post(action, payload);
+    assert.equal(response.status, 400);
+    assert.deepEqual(h.rows.get('cashier-A'), before);
+  }
+});
