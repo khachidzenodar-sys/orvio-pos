@@ -1,3 +1,7 @@
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {applyInventoryAction, consumeSale, emptyInventory, isValidInventory, seedInventory, INVENTORY_ACTIONS, type Inventory, type InventoryAction} from './inventory.ts';
+export {emptyInventory, isValidInventory, INVENTORY_ACTIONS};
+export type {Inventory};
 export type Department = {
     archived?: boolean;
     id: string;
@@ -89,6 +93,7 @@ export type PosState = {
     orders: Order[];
     tickets: Ticket[];
     audit: Audit[];
+    inventory: Inventory;
 };
 const id = () => crypto.randomUUID();
 const seedOptions: Record<string, {name: string; quickNotes: string[]; addons: Addon[]}> = {
@@ -113,7 +118,15 @@ export function getProductOptions(product: Product): {quickNotes: string[]; addo
         addons: (product.addons ?? defaults?.addons ?? []).map(addon => ({...addon})),
     };
 }
-export function seedState(): PosState { return { departments: [{ id: 'kitchen', name: 'სამზარეულო' }, { id: 'bar', name: 'ბარი' }, { id: 'pastry', name: 'საკონდიტრო' }], zones: [{ id: 'hall', name: 'დარბაზი' }, { id: 'terrace', name: 'ტერასა' }], tables: Array.from({ length: 12 }, (_, i) => ({ id: `table-${i + 1}`, name: `${i + 1}`, zoneId: i < 8 ? 'hall' : 'terrace' })), products: [['ხაჭაპური', 'კერძები', 1800, 'kitchen'], ['ცეზარი ქათმით', 'სალათები', 2400, 'kitchen'], ['პასტა ალფრედო', 'კერძები', 2600, 'kitchen'], ['კარტოფილი ფრი', 'გარნირები', 900, 'kitchen'], ['ამერიკანო', 'ყავა', 600, 'bar'], ['კაპუჩინო', 'ყავა', 800, 'bar'], ['ასკილის ლიმონათი', 'სასმელები', 1000, 'bar'], ['წყალი', 'სასმელები', 400, 'bar'], ['ჩიზქეიქი', 'დესერტები', 1200, 'pastry'], ['კრუასანი', 'დესერტები', 700, 'pastry']].map((p, i) => ({ id: `product-${i + 1}`, name: String(p[0]), category: String(p[1]), price: Number(p[2]), departmentIds: [String(p[3])], active: true })), orders: [], tickets: [], audit: [] }; }
+export function seedState(): PosState { return { departments: [{ id: 'kitchen', name: 'სამზარეულო' }, { id: 'bar', name: 'ბარი' }, { id: 'pastry', name: 'საკონდიტრო' }], zones: [{ id: 'hall', name: 'დარბაზი' }, { id: 'terrace', name: 'ტერასა' }], tables: Array.from({ length: 12 }, (_, i) => ({ id: `table-${i + 1}`, name: `${i + 1}`, zoneId: i < 8 ? 'hall' : 'terrace' })), products: [['ხაჭაპური', 'კერძები', 1800, 'kitchen'], ['ცეზარი ქათმით', 'სალათები', 2400, 'kitchen'], ['პასტა ალფრედო', 'კერძები', 2600, 'kitchen'], ['კარტოფილი ფრი', 'გარნირები', 900, 'kitchen'], ['ამერიკანო', 'ყავა', 600, 'bar'], ['კაპუჩინო', 'ყავა', 800, 'bar'], ['ასკილის ლიმონათი', 'სასმელები', 1000, 'bar'], ['წყალი', 'სასმელები', 400, 'bar'], ['ჩიზქეიქი', 'დესერტები', 1200, 'pastry'], ['კრუასანი', 'დესერტები', 700, 'pastry']].map((p, i) => ({ id: `product-${i + 1}`, name: String(p[0]), category: String(p[1]), price: Number(p[2]), departmentIds: [String(p[3])], active: true })), orders: [], tickets: [], audit: [], inventory: emptyInventory() }; }
+// Documents saved before inventory existed load with an empty stock.
+export function normalizeState(state: Omit<PosState, 'inventory'> & {inventory?: Inventory}): PosState {
+    return state.inventory ? state as PosState : {...state, inventory: emptyInventory()};
+}
+// Fresh demo and desktop documents only; real accounts start with empty stock.
+export function demoSeedState(now = new Date().toISOString()): PosState {
+    return {...seedState(), inventory: seedInventory({now, newId: id})};
+}
 export function orderTotals(order: Order) { const subtotal = order.lines.reduce((a, l) => a + l.price * (l.quantity - l.voidQuantity), 0); const discount = order.discountAmount ?? Math.round(subtotal * order.discountPercent / 100); const total = subtotal - discount; const paid = order.payments.reduce((a, p) => a + p.amount, 0); return { subtotal, discount, total, paid, due: total - paid }; }
 function proportion(a: number, b: number, den: number) { if (!den)
     return 0; const n = BigInt(a) * BigInt(b), d = BigInt(den); return Number((n * BigInt(2) + d) / (BigInt(2) * d)); }
@@ -154,7 +167,8 @@ function sameAddons(left: Addon[] = [], right: Addon[] = []) {
 }
 // Manager authorization is verified in the server route immediately before this pure transition.
 export function applyAction(original: PosState, action: string, p: Record<string, unknown>, manager = false, now = new Date().toISOString()): PosState {
-    const s = structuredClone(original);
+    const s = normalizeState(structuredClone(original));
+    const ctx = {now, newId: id};
     const log = (detail: string) => s.audit.push({ id: id(), at: now, action, detail });
     const getOrder = () => { const o = s.orders.find(o => o.id === p.orderId); assert(o, 'შეკვეთა ვერ მოიძებნა'); assert(o.status === 'open', 'ანგარიში უკვე დახურულია'); return o; };
     const editable = (o: Order) => assert(!o.payments.length, 'ნაწილობრივი გადახდის შემდეგ შეკვეთის შეცვლა შეუძლებელია');
@@ -212,6 +226,7 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const o = getOrder();
             const lines = o.lines.map(line => ({ line, quantity: line.quantity - line.voidQuantity - line.sentQuantity }));
             ticket(o, lines, 'order');
+            consumeSale(s, o, lines.filter(x => x.quantity > 0), ctx);
             for (const x of lines)
                 x.line.sentQuantity += x.quantity;
             break;
@@ -392,6 +407,18 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const t = s.tickets.find(t => t.id === p.ticketId);
             assert(t, 'ჩეკი ვერ მოიძებნა');
             t.printCount++;
+            break;
+        }
+        case 'saveStockItem':
+        case 'archiveStockItem':
+        case 'saveRecipe':
+        case 'saveBatchRecipe':
+        case 'receiveStock':
+        case 'writeOff':
+        case 'stockCount':
+        case 'produce': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            log(applyInventoryAction(s, action as InventoryAction, p, ctx));
             break;
         }
         default: throw new Error('უცნობი მოქმედება');

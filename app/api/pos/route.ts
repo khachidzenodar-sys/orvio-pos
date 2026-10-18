@@ -2,7 +2,8 @@ import { getUser } from '@/lib/server/auth';
 import { readStore, saveStore } from '@/lib/server/store';
 import { ServiceUnavailable, sameOrigin } from '@/lib/server/config';
 export const runtime = 'nodejs';
-import { applyAction, seedState, type PosState } from '@/lib/pos';
+import { applyAction, INVENTORY_ACTIONS, normalizeState, seedState, type PosState } from '@/lib/pos';
+const managerActions: string[] = ['discount', 'voidItem', 'changePin', 'saveTable', 'saveZone', 'saveDepartment', 'deleteTable', 'deleteDepartment', ...INVENTORY_ACTIONS];
 type Secret = {
     salt: string;
     hash: string;
@@ -32,7 +33,7 @@ async function read(key: string): Promise<Row> {
 async function save(key: string, version: number, doc: Document) {
     return saveStore(key, version, JSON.stringify(doc));
 }
-const response = (doc: Document, version: number, userId: string) => json({ state: doc.state, version, configured: !!doc.pin, userId });
+const response = (doc: Document, version: number, userId: string) => json({ state: normalizeState(doc.state), version, configured: !!doc.pin, userId });
 export async function GET(request: Request) { try {
     const user = await getUser(request);
     if (!user)
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
             return json({ error: 'მონაცემები შეიცვალა. განაახლეთ და სცადეთ ხელახლა.' }, 409);
         const { action, payload } = body;
         let manager = false;
-        if (['discount', 'voidItem', 'changePin', 'saveTable', 'saveZone', 'saveDepartment', 'deleteTable', 'deleteDepartment'].includes(action)) {
+        if (managerActions.includes(action)) {
             if (!doc.pin)
                 return json({ error: 'ჯერ დააყენეთ მენეჯერის კოდი' }, 403);
             if (doc.blockedUntil > Date.now())

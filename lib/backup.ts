@@ -2,8 +2,8 @@
 export const BACKUP_FORMAT_VERSION = 1;
 
 export type BackupSummary = {orders:number; products:number};
-export type Backup<Doc> = {createdAt:string; document:Doc; summary:BackupSummary};
-type Counted = {state:{orders:unknown[]; products:unknown[]}};
+export type Backup<Doc> = {createdAt:string; document:Doc; summary:BackupSummary; stockItems:number};
+type Counted = {state:{orders:unknown[]; products:unknown[]; inventory?:{items:unknown[]}}};
 
 const brokenFile = 'ფაილი დაზიანებულია ან არ არის ORVIO-ს სარეზერვო ასლი';
 
@@ -22,7 +22,7 @@ export function readBackup<Doc extends Counted>(text:string, parseDocument:(raw:
  if(e.formatVersion!==BACKUP_FORMAT_VERSION||typeof e.createdAt!=='string'||!Number.isFinite(Date.parse(e.createdAt)))throw new Error(brokenFile);
  let document:Doc;
  try{document=parseDocument(JSON.stringify(e.document??null));}catch{throw new Error('სარეზერვო ასლის მონაცემები დაზიანებულია');}
- return {createdAt:e.createdAt,document,summary:{orders:document.state.orders.length,products:document.state.products.length}};
+ return {createdAt:e.createdAt,document,summary:{orders:document.state.orders.length,products:document.state.products.length},stockItems:document.state.inventory?.items.length??0};
 }
 
 const tbilisi = (now:Date) => Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value]));

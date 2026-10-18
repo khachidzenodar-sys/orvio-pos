@@ -16,7 +16,7 @@ function evaluate(path, imports = {}) {
   return mod.exports;
 }
 
-const domain = evaluate('../lib/pos.ts');
+const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
 const format = evaluate('../lib/format.ts', {'./pos': domain});
 const layout = evaluate('../lib/printing/receipt-layout.ts', {'@/lib/pos': domain, '@/lib/format': format});
 const escpos = evaluate('../lib/printing/escpos.ts');

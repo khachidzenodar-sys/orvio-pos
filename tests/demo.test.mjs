@@ -21,7 +21,7 @@ function evaluate(path, imports = {}) {
   });
   return module.exports;
 }
-const domain = evaluate('../lib/pos.ts');
+const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
 const queue = evaluate('../lib/serial-queue.ts');
 const { createDemoStore, DEMO_STORAGE_KEY, DEFAULT_DEMO_PIN } = evaluate('../lib/demo-store.ts', {
   './pos': domain,

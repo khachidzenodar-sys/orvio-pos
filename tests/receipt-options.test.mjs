@@ -24,7 +24,7 @@ function evaluate(path, imports = {}) {
   return module.exports;
 }
 
-const domain = evaluate('../lib/pos.ts');
+const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
 const {CashLineDetails, KitchenLineDetails} = evaluate('../components/product-options.tsx', {
   '@/lib/pos': domain,
 });

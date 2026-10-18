@@ -15,7 +15,7 @@ function evaluate(path, imports = {}) {
   }, module, module.exports, webcrypto);
   return module.exports;
 }
-const domain = evaluate('../lib/pos.ts');
+const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
 function harness() {
   const rows = new Map();
   let currentUser = { userId: 'cashier-A' };

@@ -1,4 +1,4 @@
-import {applyAction, seedState, type PosState} from './pos';
+import {applyAction, demoSeedState, INVENTORY_ACTIONS, isValidInventory, normalizeState, type PosState} from './pos';
 import type {KeyValueStore} from './ports/storage';
 
 export const DEMO_STORAGE_KEY = 'orvio.demo.v1';
@@ -6,7 +6,7 @@ export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
 export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment'];
+const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
 const conflictError = 'დემო სხვა ფანჯარაში შეიცვალა. განაახლეთ და სცადეთ ხელახლა.';
@@ -37,18 +37,21 @@ function validState(v:unknown):v is PosState {
    && records(r.lines,l=>identity(l)&&typeof l.productId==='string'&&number(l.price)&&number(l.quantity)&&number(l.voidQuantity)&&number(l.sentQuantity)&&typeof l.note==='string'&&strings(l.departmentIds)&&lineOptions(l))
    && records(r.payments,p=>typeof p.id==='string'&&['cash','card','other'].includes(String(p.method))&&number(p.amount)&&date(p.createdAt)&&records(p.allocations,a=>typeof a.lineId==='string'&&number(a.amount))))
   && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
-  && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string');
+  && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string')
+  && (v.inventory===undefined||isValidInventory(v.inventory,(v.products as {id:string}[]).map(p=>p.id)));
 }
 // Throws corruptError for anything that is not a complete, valid document.
 export function parseDemoDocument(raw:string):DemoDocument {
  try{
   const d:unknown=JSON.parse(raw);
   if(!isObject(d)||d.schema!==1||typeof d.userId!=='string'||!d.userId||!number(d.version)||d.configured!==true||typeof d.pin!=='string'||!/^\d{4,12}$/.test(d.pin)||!number(d.failures)||!number(d.blockedUntil)||!validState(d.state))throw new Error();
-  return d as DemoDocument;
+  const doc=d as DemoDocument;
+  // Documents saved before inventory existed migrate to empty stock.
+  return {...doc,state:normalizeState(doc.state)};
  }catch{throw new Error(corruptError);}
 }
 function fresh():DemoDocument {
- return {schema:1,userId:crypto.randomUUID(),version:0,configured:true,state:seedState(),pin:DEFAULT_DEMO_PIN,failures:0,blockedUntil:0};
+ return {schema:1,userId:crypto.randomUUID(),version:0,configured:true,state:demoSeedState(),pin:DEFAULT_DEMO_PIN,failures:0,blockedUntil:0};
 }
 function snapshot(doc:DemoDocument):DemoSnapshot {
  return structuredClone({userId:doc.userId,version:doc.version,configured:true,state:doc.state});
@@ -103,7 +106,7 @@ export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(
   }),
   reset:()=>withLock(async()=>{const doc=fresh();await write(doc);return snapshot(doc);}),
   exportBackup:()=>withLock(async()=>(await codec()).createBackup(await read(),new Date())),
-  inspectBackup:async(text:string)=>{const {createdAt,summary}=(await codec()).readBackup(text,parseDemoDocument);return {createdAt,summary};},
+  inspectBackup:async(text:string)=>{const {createdAt,summary,stockItems}=(await codec()).readBackup(text,parseDemoDocument);return {createdAt,summary,stockItems};},
   // Replaces all local data, so it keeps a copy of the current document first.
   restoreBackup:(text:string,pin:string)=>withLock(async()=>{
    const {readBackup,backupStamp}=await codec();

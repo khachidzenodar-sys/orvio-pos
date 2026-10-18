@@ -15,7 +15,7 @@ function evaluate(path, imports = {}) {
   }, mod, mod.exports, webcrypto);
   return mod.exports;
 }
-const domain = evaluate('../lib/pos.ts');
+const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
 const backup = evaluate('../lib/backup.ts');
 const queue = evaluate('../lib/serial-queue.ts');
 const escpos = evaluate('../lib/printing/escpos.ts');
