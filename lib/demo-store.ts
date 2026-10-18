@@ -1,10 +1,10 @@
 import {applyAction, seedState, type PosState} from './pos';
+import type {KeyValueStore} from './ports/storage';
 
 export const DEMO_STORAGE_KEY = 'orvio.demo.v1';
 export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
-type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
-type LocalStorage = Pick<Storage, 'getItem'|'setItem'>;
+export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
 const managerActions = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment'];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
@@ -39,6 +39,14 @@ function validState(v:unknown):v is PosState {
   && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
   && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string');
 }
+// Throws corruptError for anything that is not a complete, valid document.
+export function parseDemoDocument(raw:string):DemoDocument {
+ try{
+  const d:unknown=JSON.parse(raw);
+  if(!isObject(d)||d.schema!==1||typeof d.userId!=='string'||!d.userId||!number(d.version)||d.configured!==true||typeof d.pin!=='string'||!/^\d{4,12}$/.test(d.pin)||!number(d.failures)||!number(d.blockedUntil)||!validState(d.state))throw new Error();
+  return d as DemoDocument;
+ }catch{throw new Error(corruptError);}
+}
 function fresh():DemoDocument {
  return {schema:1,userId:crypto.randomUUID(),version:0,configured:true,state:seedState(),pin:DEFAULT_DEMO_PIN,failures:0,blockedUntil:0};
 }
@@ -46,47 +54,70 @@ function snapshot(doc:DemoDocument):DemoSnapshot {
  return structuredClone({userId:doc.userId,version:doc.version,configured:true,state:doc.state});
 }
 
+export type DemoStore = ReturnType<typeof createDemoStore>;
+
 // This PIN is a public demo workflow, not an access-control boundary. Real
 // accounts continue to verify their own hashed PIN in the protected API.
-export function createDemoStore(storage:LocalStorage, withLock:Lock=work=>work()) {
- const write=(doc:DemoDocument)=>{
-  try{storage.setItem(DEMO_STORAGE_KEY,JSON.stringify(doc));}
-  catch{throw new Error(storageError);}
+export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(), storageMessage=storageError) {
+ const save=async(key:string,raw:string)=>{
+  try{await storage.setItem(key,raw);}
+  catch{throw new Error(storageMessage);}
  };
- const read=():DemoDocument=>{
+ const write=(doc:DemoDocument)=>save(DEMO_STORAGE_KEY,JSON.stringify(doc));
+ const exists=async(key:string)=>{
+  try{return await storage.getItem(key)!==null;}
+  catch{throw new Error(storageMessage);}
+ };
+ const load=async():Promise<{doc:DemoDocument;raw:string}>=>{
   let raw:string|null;
-  try{raw=storage.getItem(DEMO_STORAGE_KEY);}catch{throw new Error(storageError);}
-  if(raw===null){const doc=fresh();write(doc);return doc;}
-  try{
-   const d:unknown=JSON.parse(raw);
-   if(!isObject(d)||d.schema!==1||typeof d.userId!=='string'||!d.userId||!number(d.version)||d.configured!==true||typeof d.pin!=='string'||!/^\d{4,12}$/.test(d.pin)||!number(d.failures)||!number(d.blockedUntil)||!validState(d.state))throw new Error();
-   return d as DemoDocument;
-  }catch{throw new Error(corruptError);}
+  try{raw=await storage.getItem(DEMO_STORAGE_KEY);}catch{throw new Error(storageMessage);}
+  if(raw===null){const doc=fresh();await write(doc);return {doc,raw:JSON.stringify(doc)};}
+  return {doc:parseDemoDocument(raw),raw};
  };
+ const read=async()=>(await load()).doc;
+ // Same PIN rules and lockout for every manager operation.
+ const verifyPin=async(doc:DemoDocument,pin:unknown)=>{
+  if(doc.blockedUntil>Date.now())throw new Error('კოდი დროებით დაბლოკილია. სცადეთ 5 წუთში.');
+  if(pin!==doc.pin){
+   doc.failures++;
+   if(doc.failures>=5){doc.blockedUntil=Date.now()+300000;doc.failures=0;}
+   doc.version++;await write(doc);throw new Error('მენეჯერის კოდი არასწორია');
+  }
+  doc.failures=0;doc.blockedUntil=0;
+ };
+ // Loaded lazily so the core store keeps a single runtime dependency (./pos).
+ const codec=()=>import('./backup');
  return {
-  read:()=>withLock(async()=>snapshot(read())),
+  read:()=>withLock(async()=>snapshot(await read())),
   act:(action:string,payload:Record<string,unknown>,expected:Pick<DemoSnapshot,'userId'|'version'>)=>withLock(async()=>{
-   const doc=read();
+   const doc=await read();
    if(doc.userId!==expected.userId||doc.version!==expected.version)throw new Error(conflictError);
-   let manager=false;
-   if(managerActions.includes(action)){
-    if(doc.blockedUntil>Date.now())throw new Error('კოდი დროებით დაბლოკილია. სცადეთ 5 წუთში.');
-    manager=(action==='changePin'?payload.oldPin:payload.pin)===doc.pin;
-    if(!manager){
-     doc.failures++;
-     if(doc.failures>=5){doc.blockedUntil=Date.now()+300000;doc.failures=0;}
-     doc.version++;write(doc);throw new Error('მენეჯერის კოდი არასწორია');
-    }
-    doc.failures=0;doc.blockedUntil=0;
-   }
+   const manager=managerActions.includes(action);
+   if(manager)await verifyPin(doc,action==='changePin'?payload.oldPin:payload.pin);
    if(action==='setupPin')throw new Error('დემოს კოდი უკვე დაყენებულია');
    if(action==='changePin'){
     if(typeof payload.newPin!=='string'||!/^\d{4,12}$/.test(payload.newPin))throw new Error('კოდი უნდა შეიცავდეს 4–12 ციფრს');
     doc.pin=payload.newPin;
    }else doc.state=applyAction(doc.state,action,payload,manager);
-   doc.version++;write(doc);return snapshot(doc);
+   doc.version++;await write(doc);return snapshot(doc);
   }),
-  reset:()=>withLock(async()=>{const doc=fresh();write(doc);return snapshot(doc);})
+  reset:()=>withLock(async()=>{const doc=fresh();await write(doc);return snapshot(doc);}),
+  exportBackup:()=>withLock(async()=>(await codec()).createBackup(await read(),new Date())),
+  inspectBackup:async(text:string)=>{const {createdAt,summary}=(await codec()).readBackup(text,parseDemoDocument);return {createdAt,summary};},
+  // Replaces all local data, so it keeps a copy of the current document first.
+  restoreBackup:(text:string,pin:string)=>withLock(async()=>{
+   const {readBackup,backupStamp}=await codec();
+   const backup=readBackup(text,parseDemoDocument);
+   const {doc,raw}=await load();
+   await verifyPin(doc,pin);
+   // Never overwrite an earlier safety copy, even within the same second.
+   const base=`orvio.before-restore.${backupStamp(new Date())}`;
+   let key=base;
+   for(let n=2;await exists(key);n++)key=`${base}-${n}`;
+   await save(key,raw);
+   const restored:DemoDocument={...backup.document,failures:0,blockedUntil:0,version:Math.max(doc.version,backup.document.version)+1};
+   await write(restored);return snapshot(restored);
+  })
  };
 }
 
