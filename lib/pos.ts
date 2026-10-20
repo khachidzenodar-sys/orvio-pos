@@ -279,6 +279,17 @@ export function applyAction(original: PosState, action: string, p: Record<string
             o.tableId = String(p.tableId);
             break;
         }
+        // Records the cash and card parts together; the whole split fails if either part is invalid.
+        case 'splitPay': {
+            const o = getOrder();
+            const parts = (['cash', 'card'] as const).map(method => ({ method, amount: integer(p[method] ?? 0, 0) })).filter(x => x.amount > 0);
+            assert(parts.length, 'მიუთითეთ დადებითი თანხა');
+            assert(parts.reduce((sum, x) => sum + x.amount, 0) <= orderTotals(o).due, 'გადახდა აღემატება დარჩენილ თანხას');
+            let next: PosState = s;
+            for (const part of parts)
+                next = applyAction(next, 'pay', { orderId: o.id, method: part.method, amount: part.amount }, manager, now);
+            return next;
+        }
         case 'pay': {
             const o = getOrder();
             assert(o.lines.length, 'ცარიელი შეკვეთა');
