@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import {webcrypto} from 'node:crypto';
 import {createTauriFileStorage} from '../lib/adapters/tauri-file-storage.ts';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 // Inventory across the persistence boundaries: demo/desktop store, account route
 // and backup files. Old documents without inventory must keep loading.
@@ -16,7 +17,7 @@ function evaluate(path, imports = {}) {
   }, mod, mod.exports, webcrypto);
   return mod.exports;
 }
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
+const domain = loadDomain(evaluate);
 const backup = evaluate('../lib/backup.ts');
 const queue = evaluate('../lib/serial-queue.ts');
 const {createDemoStore, DEMO_STORAGE_KEY, DEFAULT_DEMO_PIN} = evaluate('../lib/demo-store.ts', {'./pos': domain, './backup': backup});

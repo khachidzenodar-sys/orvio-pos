@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 import {webcrypto} from 'node:crypto';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 function evaluate(path, imports = {}) {
   const source = ts.transpileModule(fs.readFileSync(new URL(path, import.meta.url), 'utf8'), {
@@ -15,7 +16,7 @@ function evaluate(path, imports = {}) {
   }, mod, mod.exports, webcrypto);
   return mod.exports;
 }
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
+const domain = loadDomain(evaluate);
 const backup = evaluate('../lib/backup.ts');
 const queue = evaluate('../lib/serial-queue.ts');
 const {createDemoStore, DEMO_STORAGE_KEY, DEFAULT_DEMO_PIN} = evaluate('../lib/demo-store.ts', {'./pos': domain, './backup': backup});

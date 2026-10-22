@@ -68,6 +68,8 @@ PrintDocument → receipt-layout (Row[]) → canvas-renderer (576 px) → bitmap
 | --- | --- |
 | `lib/ports/printer.ts` | პორტები: `ReceiptPrinter`, `PrinterSettings`, `Bitmap` |
 | `lib/printing/receipt-layout.ts` | ჩეკის შინაარსი სტრიქონებად (`Row[]`), სუფთა ფუნქციები |
+| `lib/printing/day-report-layout.ts` | დღის ანგარიში სტრიქონებად: `dayReportRows` |
+| `components/rows-print.tsx` | ბრაუზერის ბეჭდვა: იგივე `Row[]` HTML-ად |
 | `lib/printing/canvas-renderer.ts` | სტრიქონების დახატვა 576 px სიგანის canvas-ზე |
 | `lib/printing/bitmap.ts` | RGBA → 1-ბიტიანი bitmap (ზღვარი 160) |
 | `lib/printing/escpos.ts` | ESC/POS ბაიტები |
@@ -77,6 +79,8 @@ PrintDocument → receipt-layout (Row[]) → canvas-renderer (576 px) → bitmap
 | `src-tauri/src/printer/windows.rs` | winspool: `EnumPrintersW`, `OpenPrinterW`, `GetPrinterW` (მდგომარეობა), `StartDocPrinterW` „RAW“, `WritePrinter` |
 | `src-tauri/src/printer/stub.rs` | სხვა სისტემებზე: ცარიელი სია და გასაგები შეცდომა |
 
+**დღის ანგარიში.** „ანგარიშები → დღის ანგარიში“-ში ღილაკი „ბეჭდვა“ ქმნის `dayReportRows(...)`-ს და აგზავნის დოკუმენტს `{kind: 'rows', rows}`. ESC/POS ადაპტერი ამ სტრიქონებს პირდაპირ ხატავს (იგივე 576 წერტილის გზით, რაც ჩეკი), ბრაუზერში კი `RowsPrint` იგივე სტრიქონებს ბეჭდვის დიალოგში აჩვენებს. ცოცხალ ანგარიშზე „დათვლილი“ და „სხვაობა“ ყოველთვის იბეჭდება როგორც „—“ (ეკრანზე აკრეფილი თანხა ჯერ შენახული არ არის); ეს რიცხვები იბეჭდება შენახული დახურვიდან. შენახული დახურვის ბეჭდვა (ისტორიიდან) იყენებს ჩანაწერის ასლს და ბეჭდავს „დღის დახურვა #1“ ან „განმეორებითი დახურვა #N“, ვინ დახურა და შენიშვნას.
+
 Rust ბეჭდვამდე ამოწმებს პრინტერის მდგომარეობას (`GetPrinterW` level 6 და 4): offline, error, not available, paper out ან „Use Printer Offline“ → „პრინტერი გათიშულია ან მზად არ არის“. ზოგიერთი USB დრაივერი მდგომარეობას სწორად არ აცნობებს. ასეთ შემთხვევაში დავალება რიგში ჩადგება და პრინტერის ჩართვისას დაიბეჭდება.
 
-Linux კონტეინერში შემოწმდა კოდი და ტესტები (`tests/escpos.test.ts`, `tests/bitmap.test.ts`, `tests/receipt-layout.test.mjs`, `tests/escpos-printer.test.mjs`, `cargo check --target x86_64-pc-windows-msvc`). ფიზიკური ბეჭდვა, ჭრა და ქართული ასოების ხარისხი ქაღალდზე მოწმდება მხოლოდ ნამდვილ Windows კომპიუტერზე, საცდელი ბეჭდვით.
+Linux კონტეინერში შემოწმდა კოდი და ტესტები (`tests/escpos.test.ts`, `tests/bitmap.test.ts`, `tests/receipt-layout.test.mjs`, `tests/escpos-printer.test.mjs`, `tests/day-report-layout.test.mjs`, `cargo check --target x86_64-pc-windows-msvc`). ფიზიკური ბეჭდვა, ჭრა და ქართული ასოების ხარისხი ქაღალდზე მოწმდება მხოლოდ ნამდვილ Windows კომპიუტერზე, საცდელი ბეჭდვით.

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 // Evaluate the shipped TypeScript with explicit dependencies so the layout is tested as built.
 function evaluate(path, imports = {}) {
@@ -16,7 +17,7 @@ function evaluate(path, imports = {}) {
   return mod.exports;
 }
 
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
+const domain = loadDomain(evaluate);
 const format = evaluate('../lib/format.ts', {'./pos': domain});
 const layout = evaluate('../lib/printing/receipt-layout.ts', {'@/lib/pos': domain, '@/lib/format': format});
 const NOW = '2026-10-15T18:00:00.000Z';

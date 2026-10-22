@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 // Evaluate the shipped TypeScript with explicit dependencies (type-only imports are erased).
 function evaluate(path, imports = {}) {
@@ -16,7 +17,7 @@ function evaluate(path, imports = {}) {
   return mod.exports;
 }
 
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
+const domain = loadDomain(evaluate);
 const format = evaluate('../lib/format.ts', {'./pos': domain});
 const layout = evaluate('../lib/printing/receipt-layout.ts', {'@/lib/pos': domain, '@/lib/format': format});
 const escpos = evaluate('../lib/printing/escpos.ts');
@@ -81,6 +82,15 @@ test('print renders the receipt rows and sends the exact ESC/POS job to the sele
   assert.deepEqual(s.rendered, [layout.receiptRows(doc.order, doc.state)]);
   assert.deepEqual(s.calls, [{cmd: 'print_raw', args: {printer: 'XP-80C', data: Array.from(escpos.buildPrintJob(BITMAP))}}]);
   assert.ok(Array.isArray(s.calls[0].args.data), 'data is a plain number[] for Tauri');
+});
+
+test('a rows document is printed exactly as given', async () => {
+  const s = setup();
+  await s.printer.select('XP-80C');
+  const rows = [{text: 'დღის ანგარიში', align: 'center', bold: true}, {rule: true}, {text: 'ნაღდი', right: '20.00 ₾'}, {gap: 8}];
+  assert.equal(await s.printer.print({kind: 'rows', rows}), 'printed');
+  assert.deepEqual(s.rendered, [rows]);
+  assert.deepEqual(s.calls, [{cmd: 'print_raw', args: {printer: 'XP-80C', data: Array.from(escpos.buildPrintJob(BITMAP))}}]);
 });
 
 test('a string rejection from Rust surfaces as an Error with the same Georgian message', async () => {

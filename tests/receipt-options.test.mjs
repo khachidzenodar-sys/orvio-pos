@@ -5,6 +5,7 @@ import {createRequire} from 'node:module';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import ts from 'typescript';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -24,7 +25,7 @@ function evaluate(path, imports = {}) {
   return module.exports;
 }
 
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
+const domain = loadDomain(evaluate);
 const {CashLineDetails, KitchenLineDetails} = evaluate('../components/product-options.tsx', {
   '@/lib/pos': domain,
 });

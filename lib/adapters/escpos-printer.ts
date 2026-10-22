@@ -13,8 +13,9 @@ function asError(error:unknown):Error{
  return error instanceof Error?error:new Error(String(error));
 }
 
+// kind:'rows' documents (e.g. the day report) arrive already laid out.
 function docRows(doc:PrintDocument):Row[]{
- return doc.kind==='receipt'?receiptRows(doc.order,doc.state):ticketRows(doc.ticket,doc.state);
+ return doc.kind==='rows'?doc.rows:doc.kind==='receipt'?receiptRows(doc.order,doc.state):ticketRows(doc.ticket,doc.state);
 }
 
 // Desktop printer: renders rows to a bitmap and sends ESC/POS raster bytes to the selected Windows printer.

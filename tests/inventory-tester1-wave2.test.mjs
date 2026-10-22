@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 import {webcrypto} from 'node:crypto';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 function evaluate(path, imports = {}) {
   const source = ts.transpileModule(fs.readFileSync(new URL(path, import.meta.url), 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022}}).outputText;
@@ -14,7 +15,7 @@ function evaluate(path, imports = {}) {
   return mod.exports;
 }
 const inventory = evaluate('../lib/inventory.ts');
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': inventory});
+const domain = loadDomain(evaluate, {inventory});
 const backup = evaluate('../lib/backup.ts');
 const {createDemoStore, DEFAULT_DEMO_PIN} = evaluate('../lib/demo-store.ts', {'./pos': domain, './backup': backup});
 const memory = () => { const rows = new Map(); return {rows, getItem: k => rows.get(k) ?? null, setItem: (k, v) => { rows.set(k, String(v)); }}; };

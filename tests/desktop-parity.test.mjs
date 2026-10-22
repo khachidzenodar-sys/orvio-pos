@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 import {webcrypto} from 'node:crypto';
 import {createTauriFileStorage} from '../lib/adapters/tauri-file-storage.ts';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 // US-2: the desktop (async file) storage must produce exactly the same
 // business results as the browser (sync localStorage) storage.
@@ -18,7 +19,7 @@ function evaluate(path, imports = {}) {
   }, mod, mod.exports, webcrypto);
   return mod.exports;
 }
-const domain = evaluate('../lib/pos.ts', {'./inventory.ts': evaluate('../lib/inventory.ts')});
+const domain = loadDomain(evaluate);
 const queue = evaluate('../lib/serial-queue.ts');
 const {createDemoStore, DEMO_STORAGE_KEY} = evaluate('../lib/demo-store.ts', {'./pos': domain});
 

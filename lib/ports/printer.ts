@@ -1,6 +1,7 @@
 import type {Order,PosState,Ticket} from '@/lib/pos';
+import type {Row} from '@/lib/printing/receipt-layout';
 
-export type PrintDocument = {kind:'receipt';order:Order;state:PosState}|{kind:'ticket';ticket:Ticket;state:PosState};
+export type PrintDocument = {kind:'receipt';order:Order;state:PosState}|{kind:'ticket';ticket:Ticket;state:PosState}|{kind:'rows';rows:Row[]};
 
 // 'dialog' means no printer is selected: the UI falls back to .printarea + window.print().
 // Failures throw an Error with a Georgian message.

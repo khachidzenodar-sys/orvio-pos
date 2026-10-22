@@ -1,6 +1,13 @@
 // @ts-expect-error Explicit extension is required by the Node strip-types test runner.
 import {applyInventoryAction, consumeSale, emptyInventory, isValidInventory, seedInventory, INVENTORY_ACTIONS, type Inventory, type InventoryAction} from './inventory.ts';
-export {emptyInventory, isValidInventory, INVENTORY_ACTIONS};
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {lineBalances, orderTotals, proportion} from './order-totals.ts';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {closeDay, isValidDayCloses} from './day-report.ts';
+import type {DayClose} from './day-report';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {applyFloorPlan, isValidTableLayout} from './floor-plan.ts';
+export {emptyInventory, isValidInventory, INVENTORY_ACTIONS, lineBalances, orderTotals, isValidDayCloses, isValidTableLayout};
 export type {Inventory};
 export type Department = {
     archived?: boolean;
@@ -8,8 +15,12 @@ export type Department = {
     name: string;
 };
 export type Zone = Department;
+export type TableShape = 'round' | 'square' | 'rectangle';
+// Center of the table in plan units (0..1000 × 0..625), chairs excluded from x/y.
+export type TableLayout = {seats: number; shape: TableShape; x: number; y: number; rotation: 0 | 90};
 export type Table = Department & {
     zoneId: string;
+    layout?: TableLayout;
 };
 // Prices throughout the POS are integer tetri, including each add-on snapshot.
 export type Addon = {
@@ -94,6 +105,7 @@ export type PosState = {
     tickets: Ticket[];
     audit: Audit[];
     inventory: Inventory;
+    dayCloses?: DayClose[]; // absent in old documents = empty history
 };
 const id = () => crypto.randomUUID();
 const seedOptions: Record<string, {name: string; quickNotes: string[]; addons: Addon[]}> = {
@@ -124,13 +136,20 @@ export function normalizeState(state: Omit<PosState, 'inventory'> & {inventory?:
     return state.inventory ? state as PosState : {...state, inventory: emptyInventory()};
 }
 // Fresh demo and desktop documents only; real accounts start with empty stock.
+// Varied shapes and seats so the demo floor plan looks like a real room.
+const DEMO_LAYOUTS: [number, TableShape, number, number][] = [
+    [2, 'round', 110, 100], [2, 'round', 290, 100], [4, 'square', 110, 320], [4, 'square', 290, 320],
+    [4, 'square', 110, 530], [4, 'square', 290, 530], [6, 'rectangle', 620, 140], [8, 'rectangle', 680, 420],
+    [4, 'round', 150, 150], [4, 'round', 400, 150], [2, 'square', 650, 150], [6, 'rectangle', 500, 430],
+];
 export function demoSeedState(now = new Date().toISOString()): PosState {
-    return {...seedState(), inventory: seedInventory({now, newId: id})};
+    const base = seedState();
+    const tables = base.tables.map((t, i) => {
+        const [seats, shape, x, y] = DEMO_LAYOUTS[i];
+        return {...t, layout: {seats, shape, x, y, rotation: 0 as const}};
+    });
+    return {...base, tables, inventory: seedInventory({now, newId: id})};
 }
-export function orderTotals(order: Order) { const subtotal = order.lines.reduce((a, l) => a + l.price * (l.quantity - l.voidQuantity), 0); const discount = order.discountAmount ?? Math.round(subtotal * order.discountPercent / 100); const total = subtotal - discount; const paid = order.payments.reduce((a, p) => a + p.amount, 0); return { subtotal, discount, total, paid, due: total - paid }; }
-function proportion(a: number, b: number, den: number) { if (!den)
-    return 0; const n = BigInt(a) * BigInt(b), d = BigInt(den); return Number((n * BigInt(2) + d) / (BigInt(2) * d)); }
-export function lineBalances(order: Order) { const { subtotal, total } = orderTotals(order); let cumulative = 0, allocated = 0; return order.lines.map(l => { cumulative += l.price * (l.quantity - l.voidQuantity); const until = subtotal ? proportion(cumulative, total, subtotal) : 0; const lineTotal = until - allocated; allocated = until; const paid = order.payments.reduce((a, p) => a + p.allocations.filter(x => x.lineId === l.id).reduce((s, x) => s + x.amount, 0), 0); return { lineId: l.id, total: lineTotal, paid, due: lineTotal - paid }; }); }
 function assert(value: unknown, message: string): asserts value { if (!value)
     throw new Error(message); }
 function text(value: unknown, label: string) { assert(typeof value === 'string' && value.trim().length > 0 && value.length <= 500, label); return value.trim(); }
@@ -387,6 +406,11 @@ export function applyAction(original: PosState, action: string, p: Record<string
             }
             const idx = target.findIndex(x => x.id === value.id);
             assert(idx < 0 || !target[idx].archived, 'ჩანაწერი ამოღებულია');
+            if (action === 'saveTable' && idx >= 0) {
+                const previous = target[idx] as Table;
+                if (previous.layout && previous.zoneId === value.zoneId)
+                    (value as Table).layout = previous.layout;
+            }
             if (idx >= 0)
                 target[idx] = value as Table;
             else
@@ -430,6 +454,16 @@ export function applyAction(original: PosState, action: string, p: Record<string
         case 'produce': {
             assert(manager, 'მენეჯერის კოდი აუცილებელია');
             log(applyInventoryAction(s, action as InventoryAction, p, ctx));
+            break;
+        }
+        case 'closeDay': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            log(closeDay(s, p, ctx));
+            break;
+        }
+        case 'saveFloorPlan': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            log(applyFloorPlan(s, p, ctx));
             break;
         }
         default: throw new Error('უცნობი მოქმედება');
