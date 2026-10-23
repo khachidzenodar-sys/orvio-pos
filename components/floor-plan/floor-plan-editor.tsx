@@ -3,7 +3,7 @@
 import {useRef, useState, type KeyboardEvent, type PointerEvent} from 'react';
 import type {PosState, Table, TableLayout, TableShape} from '@/lib/pos';
 import {MAX_SEATS, MIN_SEATS, PLAN_HEIGHT, PLAN_WIDTH, SHAPE_LABELS, TABLE_SHAPES, clampPosition, findFreeSpot, nextTableName, tableStatus, zoneLayouts, zoneTables} from '@/lib/floor-plan';
-import {PlanTable} from './plan-table';
+import {PlanTable, TableDefs} from './plan-table';
 
 type Draft = {key: string; id?: string; name: string; layout: TableLayout};
 type Props = {
@@ -93,6 +93,7 @@ export function FloorPlanEditor({state, zoneId, busy, error, act, onDone}: Props
     return <div className="planeditor">
         <svg ref={svg} className="floorplan editing" viewBox={`0 0 ${PLAN_WIDTH} ${PLAN_HEIGHT}`} role="group" aria-label="განლაგების რედაქტირება"
             onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag} onKeyDown={onKeyDown}>
+            <TableDefs/>
             {draft.map(d => <PlanTable key={d.key} layout={d.layout} name={d.name || '?'} status={tableStatus(d.id ? state.orders.find(o => o.tableId === d.id && o.status === 'open') : undefined)} selected={d.key === selected}
                 onOpen={() => setSelected(d.key)} onPointerDown={event => startDrag(d, event)}/>)}
         </svg>
