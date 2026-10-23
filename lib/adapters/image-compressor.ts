@@ -59,3 +59,21 @@ export async function compressProductPhoto(file: File, crop?: PhotoCrop): Promis
     decoded.release();
   }
 }
+
+/** Larger copy of the picked picture for framing, so zooming in stays sharp. A data URL, which the desktop CSP allows. */
+export async function framingPreview(file: File, maxSide = 1200): Promise<string> {
+  const decoded = await decode(file);
+  try {
+    const {width, height} = fitWithin(decoded.width, decoded.height, maxSide);
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw Error('no canvas');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(decoded.source, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } finally {
+    decoded.release();
+  }
+}

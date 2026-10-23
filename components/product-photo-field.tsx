@@ -2,8 +2,8 @@
 
 import {useEffect, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent} from 'react';
 import type {Product} from '@/lib/pos';
-import {PHOTO_ACCEPT, isHeicFile} from '@/lib/product-photo';
-import {compressProductPhoto, type CompressedPhoto} from '@/lib/adapters/image-compressor';
+import {PHOTO_ACCEPT} from '@/lib/product-photo';
+import {compressProductPhoto, framingPreview, type CompressedPhoto} from '@/lib/adapters/image-compressor';
 import {PhotoPositioner, cropFor, type PhotoView} from '@/components/photo-positioner';
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -15,9 +15,8 @@ export function ProductPhotoField({product, busy, onSave}: {product?: Product; b
   // The picked file stays at hand so the framed part is cut from the original, not from the small preview.
   const [source, setSource] = useState<File | null>(null);
   const [view, setView] = useState<PhotoView | null>(null);
-  // Full-size picture for framing, so zooming in stays sharp; HEIC stays on the decoded preview, <img> may not read it.
+  // Larger picture for framing, so zooming in stays sharp; without it the small preview is used.
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
-  useEffect(() => () => { if (sourceUrl) URL.revokeObjectURL(sourceUrl); }, [sourceUrl]);
   const [removing, setRemoving] = useState(false);
   const [working, setWorking] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -36,7 +35,7 @@ export function ProductPhotoField({product, busy, onSave}: {product?: Product; b
   async function pick(file?: File) {
     if (!file || disabled) return;
     setLocalError(''); setWorking(true);
-    try { setPending(await compressProductPhoto(file)); setSource(file); setSourceUrl(isHeicFile(file) ? null : URL.createObjectURL(file)); setView(null); setRemoving(false); }
+    try { setPending(await compressProductPhoto(file)); setSource(file); setSourceUrl(await framingPreview(file).catch(() => null)); setView(null); setRemoving(false); }
     // A failed pick drops any earlier preview, so 'შენახვა' can never store a photo the manager just replaced.
     catch (e) { setPending(null); setRemoving(false); setPin(''); setLocalError(message(e)); }
     finally { setWorking(false); }
