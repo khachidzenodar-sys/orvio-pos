@@ -122,9 +122,9 @@ test('floor plan status and applyFloorPlan on a real state', () => {
  assert.equal(tableStatus(undefined), 'free');
  s = run(s, 'openOrder', {tableId: 'table-1'});
  const id = s.orders[0].id;
- assert.equal(tableStatus(s.orders[0]), 'occupied');
+ assert.equal(tableStatus(s.orders[0]), 'free');
  s = run(s, 'addItem', {orderId: id, productId: 'product-1', quantity: 2});
- assert.equal(tableStatus(s.orders[0]), 'occupied');
+ assert.equal(tableStatus(s.orders[0]), 'free', 'nothing sent yet');
  s = run(s, 'sendOrder', {orderId: id});
  assert.equal(tableStatus(s.orders[0]), 'occupied');
  s = run(s, 'pay', {orderId: id, method: 'cash', amount: 100});

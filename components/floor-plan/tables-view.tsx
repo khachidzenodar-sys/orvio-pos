@@ -2,7 +2,7 @@
 
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import type {PosState} from '@/lib/pos';
-import type {TableStatus} from '@/lib/floor-plan';
+import {tableStatus, type TableStatus} from '@/lib/floor-plan';
 import {FloorPlan} from './floor-plan';
 import {TableGrid} from './table-grid';
 import {TableListDialog} from './table-list-dialog';
@@ -46,7 +46,7 @@ export function TablesView({state, busy, onOpen, zone, onZone: setZone}: Props) 
         return () => window.removeEventListener('resize', update);
     }, []);
     const activeTables = state.tables.filter(t => !t.archived).length;
-    const activeOrders = state.orders.filter(o => o.status === 'open');
+    const activeOrders = state.orders.filter(o => o.status === 'open' && tableStatus(o) === 'occupied');
     return <div ref={root} className="tablesview">
         <div className="stats compact">
             <div><span>ყველა მაგიდა</span><strong>{activeTables}</strong></div>

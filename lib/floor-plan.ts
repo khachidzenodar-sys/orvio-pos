@@ -101,8 +101,9 @@ export function chairPositions(layout: Pick<TableLayout, 'seats' | 'shape'>): {x
 }
 
 // A table is occupied while it has an open order.
+// A table turns occupied once something from its order has gone to a department (or been paid).
 export function tableStatus(order: Order | undefined): TableStatus {
-    return order ? 'occupied' : 'free';
+    return order && (order.payments.length > 0 || order.lines.some(l => l.sentQuantity > 0)) ? 'occupied' : 'free';
 }
 
 function rect(layout: TableLayout): Rect {

@@ -3,7 +3,7 @@
 import type {PosState} from '@/lib/pos';
 import {orderTotals} from '@/lib/pos';
 import {money} from '@/lib/format';
-import {STATUS_LABELS, type TableStatus} from '@/lib/floor-plan';
+import {STATUS_LABELS, tableStatus, type TableStatus} from '@/lib/floor-plan';
 
 type Props = {state: PosState; status: TableStatus; onClose: () => void; onOpen: (tableId: string) => void};
 
@@ -12,7 +12,7 @@ export function TableListDialog({state, status, onClose, onOpen}: Props) {
     const openOrder = (tableId: string) => state.orders.find(o => o.tableId === tableId && o.status === 'open');
     const zones = state.zones.filter(z => !z.archived).map(z => ({
         zone: z,
-        tables: state.tables.filter(t => !t.archived && t.zoneId === z.id && (status === 'occupied') === !!openOrder(t.id)),
+        tables: state.tables.filter(t => !t.archived && t.zoneId === z.id && tableStatus(openOrder(t.id)) === status),
     })).filter(g => g.tables.length);
     return <div className="overlay" onClick={onClose}>
         <section role="dialog" aria-modal="true" aria-label={`${STATUS_LABELS[status]} მაგიდები`} className="modal tablelist" onClick={e => e.stopPropagation()}>

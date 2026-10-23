@@ -32,12 +32,13 @@ test('8-seat rectangle longer than 4-seat square', () => {
     assert.ok(tableSize({seats: 6, shape: 'rectangle'}).width > tableSize({seats: 4, shape: 'square'}).width);
 });
 
-test('any open order marks the table occupied', () => {
+test('sent or paid orders mark the table occupied; unsent ones do not', () => {
     const base = {id: 'o', tableId: 't', status: 'open' as const, createdAt: ctx.now, discountPercent: 0};
     const l = {id: 'l', productId: 'p', name: 'x', price: 100, quantity: 2, departmentIds: [], note: '', sentQuantity: 1, voidQuantity: 0};
     assert.equal(tableStatus({...base, lines: [l], payments: [{id: 'p', method: 'cash', amount: 50, createdAt: ctx.now, allocations: []}]}), 'occupied');
     assert.equal(tableStatus({...base, lines: [l], payments: []}), 'occupied');
     assert.equal(tableStatus({...base, lines: [{...l, sentQuantity: 2}], payments: []}), 'occupied');
+    assert.equal(tableStatus({...base, lines: [{...l, sentQuantity: 0}], payments: []}), 'free');
 });
 
 test('defaultLayout 24 tables never overlap', () => {
