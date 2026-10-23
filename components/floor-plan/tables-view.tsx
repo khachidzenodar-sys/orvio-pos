@@ -5,6 +5,7 @@ import type {PosState} from '@/lib/pos';
 import {STATUS_LABELS, type TableStatus} from '@/lib/floor-plan';
 import {FloorPlan} from './floor-plan';
 import {TableGrid} from './table-grid';
+import {TableListDialog} from './table-list-dialog';
 
 type Mode = 'plan' | 'grid';
 const VIEW_KEY = 'orvio.tables.view';
@@ -32,6 +33,7 @@ type Props = {
 
 export function TablesView({state, busy, onOpen, zone, onZone: setZone}: Props) {
     const [mode, setModeState] = useState<Mode>(readMode);
+    const [list, setList] = useState<TableStatus | null>(null);
     const setMode = (next: Mode) => {
         setModeState(next);
         try { window.localStorage.setItem(VIEW_KEY, next); } catch { /* storage unavailable */ }
@@ -48,9 +50,10 @@ export function TablesView({state, busy, onOpen, zone, onZone: setZone}: Props) 
     return <div ref={root} className="tablesview">
         <div className="stats compact">
             <div><span>ყველა მაგიდა</span><strong>{activeTables}</strong></div>
-            <div><span><i className="dot"/> თავისუფალი</span><strong>{activeTables - activeOrders.length}</strong></div>
-            <div><span><i className="dot amber"/> დაკავებული</span><strong>{activeOrders.length}</strong></div>
+            <button type="button" onClick={() => setList('free')}><span><i className="dot"/> თავისუფალი</span><strong>{activeTables - activeOrders.length}</strong></button>
+            <button type="button" onClick={() => setList('occupied')}><span><i className="dot amber"/> დაკავებული</span><strong>{activeOrders.length}</strong></button>
         </div>
+        {list && <TableListDialog state={state} status={list} onClose={() => setList(null)} onOpen={id => { setList(null); onOpen(id); }}/>}
         <div className="toolbar">
             <div className="tabs">
                 <button className={zone === 'all' ? 'selected' : ''} onClick={() => setZone('all')}>ყველა ზონა</button>

@@ -30,7 +30,7 @@ function TotalsPanels({totals}: {totals: DayTotals}) {
       <h2>გადახდები</h2>
       <div className="summaryrow"><span>ნაღდი</span><b>{money(totals.payments.cash)}</b></div>
       <div className="summaryrow"><span>ბარათი</span><b>{money(totals.payments.card)}</b></div>
-      <div className="summaryrow"><span>სხვა</span><b>{money(totals.payments.other)}</b></div>
+      <div className="summaryrow"><span>გადარიცხვა</span><b>{money(totals.payments.other)}</b></div>
       <div className="summaryrow total"><span>სულ</span><b>{money(totals.payments.total)}</b></div>
     </section>
   </div>;

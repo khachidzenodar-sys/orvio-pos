@@ -193,3 +193,9 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 /* Special request typed before sending to departments */
 .sendnote{display:flex;flex-direction:column;gap:6px;margin:0 0 10px;font-size:12px;color:var(--muted)}.sendnote textarea{resize:vertical;min-height:44px;padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
 .ticketnote{margin:8px 0;padding:8px 10px;border-radius:8px;background:#fff1d6;border:1px solid #e6b85c;color:#5b3a06;font-weight:700;white-space:pre-wrap}.print-ticketnote{font-size:16px;margin:6px 0;border:2px solid #000;padding:4px}
+/* Free / occupied table list opened from the stat tiles */
+.tablesview .stats.compact>button{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdf8;color:var(--ink);text-align:left;cursor:pointer}.tablesview .stats.compact>button:hover{border-color:#d4af6b}.tablesview .stats.compact>button strong{margin-top:0;font-size:20px}
+.modal.tablelist{max-width:560px}.tablelistzone h3{font-size:13px;color:var(--muted);margin:14px 0 8px;font-weight:600}
+.tablelistgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.tablelistitem{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border-radius:12px;border:2px solid #e2d6c1;background:#f6ecda}.tablelistitem b{font-size:20px}.tablelistitem small{color:var(--muted)}.tablelistitem em{font-style:normal;font-weight:700;font-size:12px;color:#7a4f0d}
+.tablelistitem.occupied{border-color:#d38b1f;background:#fdf1d8}.tablelistitem:hover{filter:brightness(.97)}

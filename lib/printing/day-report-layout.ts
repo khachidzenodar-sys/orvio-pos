@@ -34,7 +34,7 @@ export function dayReportRows(doc:DayReportPrint):Row[]{
   RULE,
   {text:'ნაღდი',right:money(t.payments.cash)},
   {text:'ბარათი',right:money(t.payments.card)},
-  {text:'სხვა',right:money(t.payments.other)},
+  {text:'გადარიცხვა',right:money(t.payments.other)},
   {text:'სულ გადახდები',right:money(t.payments.total)},
   RULE,
   {text:'ღია ანგარიშები',right:`${t.openBills} / ${money(t.openAmount)}`},
