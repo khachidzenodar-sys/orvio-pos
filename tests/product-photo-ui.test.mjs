@@ -52,7 +52,7 @@ test('printing code never references photos', () => {
 import ts from 'typescript';
 function workspaceReload(responses) {
     const src = read('../components/pos-workspace.tsx');
-    const accept = src.match(/ const accept=(.*?);\n/s)[1], reload = src.match(/ const reload=(.*?);\n/s)[1];
+    const accept = src.match(/ const accept=(.*?);\r?\n/s)[1], reload = src.match(/ const reload=(.*?);\r?\n/s)[1];
     const js = ts.transpile(`(env)=>{const {latest,setData,setError,setNeedsLogin,isDemo,demo,window,fetch}=env;const accept=${accept};const reload=${reload};return reload;}`, {target: ts.ScriptTarget.ES2022});
     const env = {latest: {current: null}, shown: null, errors: [], reloads: 0, urls: [], isDemo: false, demo: null, setNeedsLogin() {},
         setData: d => { env.shown = d; }, setError: e => { env.errors.push(e); },
