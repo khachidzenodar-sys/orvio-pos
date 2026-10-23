@@ -237,3 +237,5 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .switch.on{background:#1f6e4f}.switch.on span{left:23px}
 .tablecard .tablebottom{justify-content:space-between}.tablecard .tablename{font-weight:700;font-size:15px;color:var(--ink)}
 .titlerow{display:flex;align-items:center;gap:16px}.titlerow button{padding:9px 16px}
+.photopositioner{margin:4px 0 12px}.positionframe{position:relative;width:320px;height:240px;flex-shrink:0;overflow:hidden;border-radius:10px;background:#f4eee2;cursor:grab;touch-action:none;user-select:none;outline-offset:3px}.positionframe:active{cursor:grabbing}.positionframe img{position:absolute;max-width:none;pointer-events:none}
+.positionzoom{display:flex;align-items:center;gap:8px;margin:10px 0 6px;max-width:320px}.positionzoom input{flex:1;margin:0;padding:0}.positionzoom button{padding:5px 11px;font-size:13px}.photopositioner p{margin:0}

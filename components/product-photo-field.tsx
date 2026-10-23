@@ -2,8 +2,9 @@
 
 import {useEffect, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent} from 'react';
 import type {Product} from '@/lib/pos';
-import {PHOTO_ACCEPT} from '@/lib/product-photo';
+import {PHOTO_ACCEPT, isHeicFile} from '@/lib/product-photo';
 import {compressProductPhoto, type CompressedPhoto} from '@/lib/adapters/image-compressor';
+import {PhotoPositioner, cropFor, type PhotoView} from '@/components/photo-positioner';
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -11,6 +12,12 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  *  onSave resolves true when saved; it may reject with a Georgian Error, which is shown next to the PIN controls. */
 export function ProductPhotoField({product, busy, onSave}: {product?: Product; busy: boolean; onSave: (photo: string | null, pin: string) => Promise<boolean>}) {
   const [pending, setPending] = useState<CompressedPhoto | null>(null);
+  // The picked file stays at hand so the framed part is cut from the original, not from the small preview.
+  const [source, setSource] = useState<File | null>(null);
+  const [view, setView] = useState<PhotoView | null>(null);
+  // Full-size picture for framing, so zooming in stays sharp; HEIC stays on the decoded preview, <img> may not read it.
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  useEffect(() => () => { if (sourceUrl) URL.revokeObjectURL(sourceUrl); }, [sourceUrl]);
   const [removing, setRemoving] = useState(false);
   const [working, setWorking] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -29,20 +36,21 @@ export function ProductPhotoField({product, busy, onSave}: {product?: Product; b
   async function pick(file?: File) {
     if (!file || disabled) return;
     setLocalError(''); setWorking(true);
-    try { setPending(await compressProductPhoto(file)); setRemoving(false); }
+    try { setPending(await compressProductPhoto(file)); setSource(file); setSourceUrl(isHeicFile(file) ? null : URL.createObjectURL(file)); setView(null); setRemoving(false); }
     // A failed pick drops any earlier preview, so 'შენახვა' can never store a photo the manager just replaced.
     catch (e) { setPending(null); setRemoving(false); setPin(''); setLocalError(message(e)); }
     finally { setWorking(false); }
   }
   const choose = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; event.target.value = ''; pick(file); };
   const drop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragover(false); pick(event.dataTransfer.files?.[0]); };
-  const cancel = () => { setPending(null); setRemoving(false); setPin(''); setLocalError(''); };
+  const cancel = () => { setPending(null); setSource(null); setSourceUrl(null); setRemoving(false); setPin(''); setLocalError(''); };
 
   async function save() {
     if (disabled || !editing || !pin) return;
     setLocalError(''); setWorking(true);
     try {
-      if (await onSave(removing ? null : pending!.dataUrl, pin)) { setPending(null); setRemoving(false); }
+      const photo = removing ? null : source ? (await compressProductPhoto(source, cropFor(view, pending!.width, pending!.height))).dataUrl : pending!.dataUrl;
+      if (await onSave(photo, pin)) { setPending(null); setSource(null); setSourceUrl(null); setRemoving(false); }
     } catch (e) { setLocalError(message(e)); }
     finally { setPin(''); setWorking(false); }
   }
@@ -53,11 +61,12 @@ export function ProductPhotoField({product, busy, onSave}: {product?: Product; b
   const shown = removing ? undefined : pending?.dataUrl ?? product.photo;
   return <fieldset className="photofield">
     <legend>ფოტო</legend>
+    {pending && !removing && <PhotoPositioner src={sourceUrl ?? pending.dataUrl} width={pending.width} height={pending.height} view={view} onChange={setView} disabled={disabled}/>}
     <div className="photorow">
-      <div className={`photoframe${dragover ? ' dragover' : ''}${removing ? ' removing' : ''}`} onDragOver={event => { event.preventDefault(); if (!disabled) setDragover(true); }} onDragLeave={() => setDragover(false)} onDrop={drop}>
+      {!(pending && !removing) && <div className={`photoframe${dragover ? ' dragover' : ''}${removing ? ' removing' : ''}`} onDragOver={event => { event.preventDefault(); if (!disabled) setDragover(true); }} onDragLeave={() => setDragover(false)} onDrop={drop}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {shown ? <img src={shown} alt={product.name} width={pending && !removing ? pending.width : 400} height={pending && !removing ? pending.height : 300} decoding="async" draggable={false}/> : <span className="muted">ფოტო არ არის</span>}
-      </div>
+      </div>}
       <div className="photoactions">
         <label className={`button${disabled ? ' disabled' : ''}`} aria-disabled={disabled}>
           {product.photo || pending ? 'ფოტოს შეცვლა' : 'ფოტოს დამატება'}
@@ -65,7 +74,6 @@ export function ProductPhotoField({product, busy, onSave}: {product?: Product; b
         </label>
         {product.photo && !removing && <button type="button" disabled={disabled} onClick={() => { setPending(null); setRemoving(true); setLocalError(''); }}>ფოტოს წაშლა</button>}
         {working && <p className="muted" role="status">ფოტო მუშავდება…</p>}
-        {pending && !removing && <p className="muted">{pending.kilobytes} კბ · {pending.width}×{pending.height}</p>}
         {removing && <p className="muted">ფოტო წაიშლება</p>}
         {localError && !editing && errorBox}
       </div>
