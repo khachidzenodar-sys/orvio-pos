@@ -37,7 +37,7 @@ test('compressor honours EXIF orientation and never touches the DOM at import ti
 
 test('product grid column counts are unchanged by photos', () => {
     const photoBlock = css.slice(css.indexOf('/* Product photos'));
-    assert.ok(!photoBlock.includes('productgrid'));
+    assert.ok(!photoBlock.includes('grid-template-columns'));
 });
 
 test('printing code never references photos', () => {
@@ -46,4 +46,50 @@ test('printing code never references photos', () => {
         return statSync(path).isDirectory() ? walk(new URL(`${name}/`, dir)) : [path];
     });
     for (const path of walk(new URL('../lib/printing/', import.meta.url))) assert.ok(!/photo/i.test(readFileSync(path, 'utf8')), path.pathname);
+});
+
+// Runs the real accept()/reload() bodies from pos-workspace.tsx against a stubbed /api/pos.
+import ts from 'typescript';
+function workspaceReload(responses) {
+    const src = read('../components/pos-workspace.tsx');
+    const accept = src.match(/ const accept=(.*?);\n/s)[1], reload = src.match(/ const reload=(.*?);\n/s)[1];
+    const js = ts.transpile(`(env)=>{const {latest,setData,setError,setNeedsLogin,isDemo,demo,window,fetch}=env;const accept=${accept};const reload=${reload};return reload;}`, {target: ts.ScriptTarget.ES2022});
+    const env = {latest: {current: null}, shown: null, errors: [], reloads: 0, urls: [], isDemo: false, demo: null, setNeedsLogin() {},
+        setData: d => { env.shown = d; }, setError: e => { env.errors.push(e); },
+        window: {location: {reload: () => { env.reloads++; }}},
+        fetch: async url => { env.urls.push(url); const body = responses.shift(); return {status: 200, ok: true, json: async () => body}; }};
+    return {env, run: (0, eval)(js)(env)};
+}
+
+test('reload: unchanged keeps the screen, but an unchanged answer for another account reloads the page', async () => {
+    const state = {products: []};
+    const {env, run} = workspaceReload([
+        {userId: 'a', version: 3, configured: true, state},
+        {unchanged: true, userId: 'a', version: 3},
+        {unchanged: true, userId: 'b', version: 3}]);
+    await run();
+    assert.equal(env.shown.userId, 'a');
+    await run();
+    assert.equal(env.urls[1], '/api/pos?since=3');
+    assert.equal(env.reloads, 0);
+    assert.equal(env.shown.userId, 'a');
+    await run();
+    assert.equal(env.reloads, 1, 'account switch at the same version must reload');
+    assert.deepEqual(env.errors, []);
+});
+
+test('photo field: save errors show next to the PIN controls and a failed pick drops the old preview', () => {
+    assert.match(field, /catch \(e\) \{ setPending\(null\); setRemoving\(false\); setPin\(''\); setLocalError/);
+    const confirm = field.slice(field.indexOf('className="photoconfirm"'));
+    assert.ok(confirm.includes('{localError && errorBox}'), 'save errors render inside .photoconfirm');
+    assert.ok(field.includes("scrollIntoView({block: 'nearest'})"));
+    // The workspace surfaces act() failures to the field instead of only the modal's bottom error box.
+    assert.match(workspace, /if\(!d\)\{setError\(''\);throw Error\(lastError\.current\);\}/);
+});
+
+test('photo cards top-align only in grids that show photos and keep a landscape strip', () => {
+    const photoBlock = css.slice(css.indexOf('/* Product photos'));
+    assert.match(photoBlock, /\.productgrid:has\(\.hasphoto\) \.product\{display:flex;flex-direction:column;justify-content:flex-start/);
+    assert.match(photoBlock, /\.productphoto\{[^}]*aspect-ratio:4\/3;max-height:96px/);
+    assert.match(photoBlock, /\.menuname\{display:flex;align-items:center/);
 });

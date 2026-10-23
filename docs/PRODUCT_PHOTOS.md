@@ -91,7 +91,7 @@ CSP (`src-tauri/tauri.conf.json`) უკვე უშვებს `img-src 'self
 | `PHOTO_SOURCE_MAX_BYTES` | 15 × 1024 × 1024 | საწყისი ფაილი, მოწმდება დეკოდირებამდე |
 | `PHOTO_ACCEPT` | `image/jpeg,image/png,image/webp,image/heic,image/heif` | `<input accept>` |
 
-localStorage-ის ბიუჯეტი (≈5 მლნ სიმბოლო origin-ზე): 30 ფოტო × ≤54 000 ≈ 1.6 მლნ, დემოს დანარჩენი მონაცემები კი < 0.2 მლნ, ანუ < 2 მლნ. ეს ტესტით მოწმდება (§2.9). `restoreBackup` ინახავს `orvio.before-restore.*` ასლს. ამიტომ ორი სრული დოკუმენტიც (≈2 × 2 მლნ) ჩაეტევა. Quota-ს შეცდომისას აღდგენა უსაფრთხოდ წყდება და მიმდინარე დოკუმენტი უცვლელი რჩება. ჯამური ლიმიტი მხოლოდ `setProductPhoto` მოქმედებაში მოწმდება. Strict validation მხოლოდ თითო ფოტოს ფორმატსა და ზომას ამოწმებს, რომ ლიმიტის მომავალმა ცვლილებამ ძველი დოკუმენტები არ დააზიანოს.
+localStorage-ის ბიუჯეტი (≈5 მლნ სიმბოლო origin-ზე): 30 ფოტო × ≤54 000 ≈ 1.6 მლნ, დემოს დანარჩენი მონაცემები კი < 0.2 მლნ, ანუ < 2 მლნ. ეს ტესტით მოწმდება (§2.9). `restoreBackup` აღდგენამდე ინახავს `orvio.before-restore.*` ასლს. ბრაუზერის დემო ინახავს მხოლოდ ბოლო ასლს (ძირითადი დოკუმენტი + 1 ასლი ≈ 2 × 2 მლნ ჩაეტევა). ასლების სია ინახება `orvio.restore-copies` გასაღებში. თუ მეხსიერება გავსებულია, ახალი ასლი ძველ ასლს ატომურად გადაეწერება. თუ იგივე მონაცემები აღდგება ხელმეორედ, ახალი ასლი საჭირო არ არის. თუ ადგილი მაინც არ არის, აღდგენა წყდება და მიმდინარე დოკუმენტი უცვლელი რჩება. Desktop ინახავს ყველა ასლს. Quota-ს შეცდომისას აღდგენა უსაფრთხოდ წყდება და მიმდინარე დოკუმენტი უცვლელი რჩება. ჯამური ლიმიტი მხოლოდ `setProductPhoto` მოქმედებაში მოწმდება. Strict validation მხოლოდ თითო ფოტოს ფორმატსა და ზომას ამოწმებს, რომ ლიმიტის მომავალმა ცვლილებამ ძველი დოკუმენტები არ დააზიანოს.
 
 ### 2.3 სუფთა მოდული `lib/product-photo.ts` (დეველოპერი A)
 
@@ -214,7 +214,7 @@ export async function compressProductPhoto(file: File): Promise<CompressedPhoto>
 export function ProductPhotoField(props: {
   product?: Product;                       // undefined = new product → hint only
   busy: boolean;
-  onSave: (photo: string | null, pin: string) => Promise<boolean>; // true = saved
+  onSave: (photo: string | null, pin: string) => Promise<boolean>; // true = saved; rejects with Error(Georgian message) on failure
 }): JSX.Element;
 ```
 - ის `saveProduct` modal-ის **შიგნითაა**, ამიტომ: ყველა ღილაკი `type="button"`, PIN-ის input-ს **არ აქვს `name`** და `required` (მთავარი ფორმის FormData-სა და validation-ს არ ეხება). PIN-ში Enter → `preventDefault()` და ფოტოს შენახვა, და არა `saveProduct`-ის submit.
@@ -222,13 +222,13 @@ export function ProductPhotoField(props: {
 - მდგომარეობა: `pending: CompressedPhoto | null`, `removing: boolean`, `working: boolean`, `localError: string`, `pin: string`.
 - გამოსახულება: მიმდინარე ფოტო (`<img width=400 height=300 alt={product.name}>` 160×120 ჩარჩოში) ან ცარიელი ჩარჩო „ფოტო არ არის“. ჩარჩო არის drop zone (`onDragOver` preventDefault, `onDrop` → პირველი ფაილი). `<label className="button">` + დამალული `<input type="file" accept={PHOTO_ACCEPT}>` (`capture` **არ** არის, რომ ტელეფონმა კამერაც და გალერეაც შესთავაზოს) ტექსტით „ფოტოს დამატება“ ან „ფოტოს შეცვლა“. „ფოტოს წაშლა“ (`removing=true`). ყოველი არჩევის შემდეგ `input.value=''`.
 - `pending` ან `removing` მდგომარეობაში ჩანს წინასწარი ნახვა და `„{kilobytes} კბ · {width}×{height}“` (ან „ფოტო წაიშლება“), „მენეჯერის კოდი“, „შენახვა“ (`onSave(pending.dataUrl | null, pin)`) და „გაუქმება“ (`pending=null; removing=false`). წარმატებისას ყველაფერი სუფთავდება. მთავარი ფორმის სხვა ველები ხელუხლებელი რჩება (უმართავი `defaultValue` ველები remount-ს არ განიცდიან).
-- `working` მდგომარეობაში ჩანს „ფოტო მუშავდება…“ და ღილაკები disabled-ია. `localError` ჩანს `role="alert"`-ით.
+- `working` მდგომარეობაში ჩანს „ფოტო მუშავდება…“ და ღილაკები disabled-ია. `localError` ჩანს `role="alert"`-ით **ფოტოს ველის შიგნით**: ფაილის შეცდომა ღილაკების გვერდით, შენახვის შეცდომა კი (PIN, ლიმიტი, quota) „შენახვა“/„გაუქმება“-ს ქვემოთ. შეტყობინება და PIN-ის ველი `scrollIntoView({block:'nearest'})`-ით ჩანს, რომ modal-ის ქვედა კიდის მიღმა არ დარჩეს. ფაილის შეცდომისას წინა `pending` და PIN სუფთავდება, ამიტომ „შენახვა“ ძველ ფოტოს ვეღარ შეინახავს.
 
 **`components/pos-workspace.tsx`**:
-- `saveProduct` modal-ში, `<MenuProductOptions>`-მდე: `<ProductPhotoField product={product} busy={busy} onSave={async (photo,pin)=>{const d=await act('setProductPhoto',{productId:product!.id,photo,pin});if(d)setNotice(photo?'ფოტო შენახულია':'ფოტო წაიშალა');return !!d;}}/>`. Domain-ის შეცდომას (PIN, ლიმიტი, quota) `act` თავისით აჩვენებს modal-ის `formerror`-ში.
+- `saveProduct` modal-ში, `<MenuProductOptions>`-მდე: `<ProductPhotoField product={product} busy={busy} onSave={async (photo,pin)=>{const d=await act('setProductPhoto',{productId:product!.id,photo,pin});if(!d){setError('');throw Error(lastError.current);}setNotice(photo?'ფოტო შენახულია':'ფოტო წაიშალა');return true;}}/>`. `act` ბოლო შეცდომას `lastError` ref-ში ინახავს. Domain-ის შეცდომა (PIN, ლიმიტი, quota) ფოტოს ველში ჩანს, modal-ის ქვედა `formerror` კი სუფთავდება, რომ შეტყობინება ორჯერ არ გამოჩნდეს.
 - შეკვეთის ბარათი: ფოტოიან `button.product`-ს ემატება კლასი `hasphoto` და პირველ ელემენტად `<img className="productphoto" src={p.photo} alt={p.name} width={400} height={300} loading="lazy" decoding="async" draggable={false}/>`. კატეგორია, `h3` და ფასი რჩება **ფოტოს ქვემოთ** და არასდროს ფარავს მას. ფოტოს გარეშე ბარათის markup უცვლელია.
-- მენიუს სია: სახელის უჯრაში `<b>`-მდე `{p.photo&&<img className="menuthumb" src={p.photo} alt={p.name} width={40} height={40} loading="lazy" decoding="async"/>}`.
-- `reload()` ანგარიშის რეჟიმში: `fetch('/api/pos' + (latest.current ? `?since=${latest.current.version}` : ''))`. თუ პასუხს აქვს `unchanged: true`, არაფერი ხდება (`accept`-ი არ გამოიძახება). userId-ის შეცვლის შემთხვევაში სერვერი ნებისმიერ შემთხვევაში სრულ პასუხს აბრუნებს, რადგან version სხვა ანგარიშისაა. დემოს/desktop-ის `reload` უცვლელია.
+- მენიუს სია: ფოტოიან სტრიქონში სახელის უჯრაში `<span className="menuname"><img className="menuthumb" src={p.photo} alt={p.name} width={40} height={40} loading="lazy" decoding="async"/><b>{p.name}</b></span>` (flex, ვერტიკალურად ცენტრში). ფოტოს გარეშე სტრიქონის markup უცვლელია.
+- `reload()` ანგარიშის რეჟიმში: `fetch('/api/pos' + (latest.current ? `?since=${latest.current.version}` : ''))`. თუ პასუხს აქვს `unchanged: true` და მისი `userId` ემთხვევა `latest.current.userId`-ს, არაფერი ხდება (`accept`-ი არ გამოიძახება). სერვერი `since`-ს მხოლოდ შესული მომხმარებლის ვერსიას ადარებს, ამიტომ სხვა ანგარიშზე გადასვლისას, თუ ახალ ანგარიშსაც იგივე version აქვს, პასუხი შეიძლება მაინც `unchanged` იყოს. ამიტომ `unchanged` პასუხზე `userId` აუცილებლად მოწმდება და, თუ შეიცვალა, გვერდი `window.location.reload()`-ით ხელახლა იტვირთება (ისევე, როგორც `accept`-ში). დემოს/desktop-ის `reload` უცვლელია.
 - `<img>` ელემენტებზე `{/* eslint-disable-line @next/next/no-img-element */}` (`pos-workspace.tsx`-ში თითო view ერთ სტრიქონზეა, ამიტომ `next-line` არ მუშაობს; `product-photo-field.tsx`-ში `next-line`), რადგან data URL-ს `next/image` არ სჭირდება (ეს მხოლოდ გაფრთხილებაა, მაგრამ სუფთად ვტოვებთ).
 
 **`components/backup-panel.tsx`**: შემოწმების შეჯამებაში, თუ `pending.photos !== undefined`, ჩანს `<div className="summaryrow"><span>ფოტოები</span><b>{pending.photos}</b></div>`.
@@ -236,11 +236,14 @@ export function ProductPhotoField(props: {
 **`app/globals.css`** (ფაილის ბოლოს, ერთ ბლოკად):
 ```css
 /* Product photos: image above the text, fixed box so nothing jumps while decoding. */
-.product .productphoto{display:block;width:100%;height:96px;object-fit:cover;border-radius:8px;margin:0 0 10px;background:#f4eee2}
+.product .productphoto{display:block;width:100%;height:auto;aspect-ratio:4/3;max-height:96px;object-fit:cover;border-radius:8px;margin:0 0 10px;background:#f4eee2}
 .product.hasphoto{min-height:146px}
 .product.hasphoto h3{margin:8px 0 10px}
-@media(max-width:760px){.product .productphoto{height:72px}}
-.menuthumb{float:left;width:40px;height:40px;object-fit:cover;border-radius:6px;margin:-4px 10px -4px 0}
+/* Only grids with photos: cards top-aligned (rows stretch), price pinned to the bottom. */
+.productgrid:has(.hasphoto) .product{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}
+.productgrid:has(.hasphoto) .product>div{margin-top:auto}
+@media(max-width:760px){.product .productphoto{max-height:72px}}
+.menuname{display:flex;align-items:center;gap:10px} .menuthumb{width:40px;height:40px;object-fit:cover;border-radius:6px}
 .photofield{…} .photoframe{width:160px;height:120px;border:1px dashed var(--line);border-radius:10px;display:grid;place-items:center;overflow:hidden}
 .photoframe img{width:100%;height:100%;object-fit:cover} .photoframe.dragover{border-color:var(--gold)}
 ```
