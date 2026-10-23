@@ -19,7 +19,7 @@ export function TableGrid({state, zoneId, busy, onOpen}: {state: PosState; zoneI
                 <TableDefs/>
                 <PlanTable layout={layout} name={table.name} status={status} amount={due} hideName/>
             </svg>
-            <div className="tablebottom"><span className="tablename">მაგიდა {table.name}</span>{due && <b>{due}</b>}</div>
+            <div className="tablebottom"><span className="tablename">{table.name}</span>{due && <b>{due}</b>}</div>
         </button>;
     })}</div>;
 }
