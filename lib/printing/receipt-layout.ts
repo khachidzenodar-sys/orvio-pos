@@ -3,7 +3,7 @@ import {money,when,grouped,methods} from '@/lib/format';
 
 // Abstract printable lines; the renderer decides pixels. Content mirrors the .printarea in pos-workspace.tsx.
 export type Row =
- |{text:string;right?:string;align?:'left'|'center'|'right';size?:'normal'|'large'|'huge';bold?:boolean}
+ |{text:string;right?:string;align?:'left'|'center'|'right';size?:'normal'|'large'|'huge';bold?:boolean;lead?:string} // lead: bold prefix on a short left-aligned line
  |{rule:true}
  |{gap:number}
  |{image:string;caption?:string};
@@ -57,7 +57,7 @@ export function receiptRows(order:Order,state:PosState,printedAt=new Date()):Row
  ];
  for(const line of order.lines.filter(l=>l.quantity>l.voidQuantity)){
   const qty=line.quantity-line.voidQuantity;
-  rows.push({text:line.name,bold:true},{text:`${qty} × ${money(line.price)}`,right:money(line.price*qty)},...cashDetails(line));
+  rows.push({text:line.name,bold:true},{lead:`${qty} ×`,text:money(line.price),right:money(line.price*qty)},...cashDetails(line));
  }
  rows.push(RULE);
  const summary:[string,number][]=[['სულ',totals.subtotal],['ფასდაკლება',totals.discount],['ჯამი',totals.total],['გადახდილია',totals.paid],['დარჩენილია',totals.due]];

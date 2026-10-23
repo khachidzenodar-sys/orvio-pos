@@ -38,7 +38,7 @@ function scenario() {
   return {act, orderId, get state() { return state; }, get order() { return state.orders[0]; }};
 }
 
-const texts = rows => rows.filter(r => 'text' in r).map(r => r.right ? `${r.text} ${r.right}` : r.text);
+const texts = rows => rows.filter(r => 'text' in r).map(r => [r.lead, r.text, r.right].filter(x => x !== undefined).join(' '));
 function assertInOrder(lines, expected) {
   let at = -1;
   for (const text of expected) {
@@ -183,4 +183,11 @@ test('the ticket copy marker appears only from the second print, like the UI', (
       assert.equal(lines.some(l => l.includes('ასლი')), printCount > 1);
     }
   }
+});
+
+test('only the quantity is bold on a dish line; price and total stay regular', () => {
+  const s = scenario();
+  const rows = layout.receiptRows(s.order, s.state).filter(r => 'lead' in r);
+  assert.ok(rows.length >= 3);
+  for (const row of rows) { assert.match(row.lead, /^\d+ ×$/); assert.ok(!row.bold); assert.match(row.text, /₾$/); }
 });

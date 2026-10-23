@@ -9,7 +9,7 @@ export function RowsPrint({rows}:{rows:Row[]}){
   if('image' in row)return row.caption!==undefined?<div key={i} className="rowsprintmark"><img src={row.image} alt=""/>{row.caption}</div>:<img key={i} className="rowsprintlogo" src={row.image} alt="ლოგო"/>;
   /* eslint-enable @next/next/no-img-element */
   const classes=[row.align==='center'?'center':'',row.size==='large'?'large':row.size==='huge'?'huge':''].filter(Boolean).join(' ');
-  if(row.right!==undefined)return <div key={i} className={`summaryrow ${classes}`.trim()} style={row.bold?{fontWeight:700}:undefined}><span>{row.text}</span><b>{row.right}</b></div>;
+  if(row.right!==undefined)return <div key={i} className={`summaryrow ${classes}`.trim()} style={row.bold?{fontWeight:700}:undefined}><span>{row.lead!==undefined&&<b>{row.lead} </b>}{row.text}</span><b>{row.right}</b></div>;
   return <div key={i} className={classes||undefined} style={{fontWeight:row.bold?700:undefined,textAlign:row.align==='right'?'right':undefined}}>{row.text}</div>;
  })}</div>;
 }

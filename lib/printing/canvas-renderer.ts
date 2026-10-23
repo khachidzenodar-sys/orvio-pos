@@ -16,7 +16,7 @@ const SIZES={normal:{px:24,bold:false},large:{px:34,bold:true},huge:{px:48,bold:
 const SAMPLE='ქართული ₾';
 
 type TextRow=Extract<Row,{text:string}>;
-type Op={kind:'text';font:string;text:string;x:number;y:number;align:CanvasTextAlign}|{kind:'rule';y:number}|{kind:'image';image:CanvasImageSource;x:number;y:number;width:number;height:number};
+type Op={kind:'text';font:string;text:string;x:number;y:number;align:CanvasTextAlign;lead?:{font:string;text:string}}|{kind:'rule';y:number}|{kind:'image';image:CanvasImageSource;x:number;y:number;width:number;height:number};
 const LOGO_MAX={width:320,height:200};
 const MARK_HEIGHT=30,MARK_GAP=8;
 type Images=Map<string,{image:CanvasImageSource;width:number;height:number}>;
@@ -68,6 +68,14 @@ function layout(ctx:CanvasRenderingContext2D,rows:Row[],images:Images=new Map())
   }
   if('rule' in row){y+=RULE_SPACE;ops.push({kind:'rule',y});y+=RULE_HEIGHT+RULE_SPACE;continue;}
   const font=fontOf(row),height=lineHeight(row);
+  if(row.lead!==undefined){
+   // Bold prefix (e.g. "2 ×") then the regular text on the same line.
+   const leadFont=`bold ${SIZES[row.size||'normal'].px}px ${FAMILY}`;ctx.font=leadFont;
+   const leadW=ctx.measureText(`${row.lead} `).width;
+   ops.push({kind:'text',font,text:row.text,x:MARGIN+leadW,y:y+height/2,align:'left',lead:{font:leadFont,text:row.lead}});
+   if(row.right!==undefined){ctx.font=font;ops.push({kind:'text',font,text:row.right,x:WIDTH-MARGIN,y:y+height/2,align:'right'});}
+   y+=height;continue;
+  }
   ctx.font=font;
   const right=row.right,room=right===undefined?CONTENT:CONTENT-ctx.measureText(right).width-COLUMN_GAP;
   // A very wide right part gets its own line instead of squeezing the left text.
@@ -125,6 +133,7 @@ export async function renderRows(rows:Row[]):Promise<Bitmap>{
  for(const op of ops){
   if(op.kind==='rule'){ctx.fillRect(MARGIN,op.y,CONTENT,RULE_HEIGHT);continue;}
   if(op.kind==='image'){drawLogo(ctx,op);continue;}
+  if(op.kind==='text'&&op.lead){ctx.font=op.lead.font;ctx.textAlign='left';ctx.fillText(op.lead.text,MARGIN,op.y);}
   ctx.font=op.font;ctx.textAlign=op.align;ctx.fillText(op.text,op.x,op.y);
  }
  return toBitmap(ctx.getImageData(0,0,WIDTH,height).data,WIDTH,height);
