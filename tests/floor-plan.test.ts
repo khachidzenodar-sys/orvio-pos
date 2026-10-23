@@ -97,15 +97,15 @@ test('a table without layout never lands on a saved table', () => {
     }
 });
 
-test('table status precedence: partial > unsent > occupied > free', () => {
+test('a table with an open order is occupied, otherwise free', () => {
     const pay = {id: 'p', method: 'cash' as const, amount: 100, createdAt: '2026-10-22T10:00:00.000Z', allocations: []};
     assert.equal(tableStatus(undefined), 'free');
     assert.equal(tableStatus(order()), 'occupied');
     assert.equal(tableStatus(order({lines: [line(2, 2)]})), 'occupied');
     assert.equal(tableStatus(order({lines: [line(2, 1, 1)]})), 'occupied');
-    assert.equal(tableStatus(order({lines: [line(2, 1)]})), 'unsent');
-    assert.equal(tableStatus(order({lines: [line(2, 1)], payments: [pay]})), 'partial');
-    assert.equal(tableStatus(order({lines: [line(2, 2)], payments: [pay]})), 'partial');
+    assert.equal(tableStatus(order({lines: [line(2, 1)]})), 'occupied');
+    assert.equal(tableStatus(order({lines: [line(2, 1)], payments: [pay]})), 'occupied');
+    assert.equal(tableStatus(order({lines: [line(2, 2)], payments: [pay]})), 'occupied');
 });
 
 test('findFreeSpot avoids existing tables and falls back to the centre', () => {

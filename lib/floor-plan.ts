@@ -7,8 +7,8 @@ export const MIN_SEATS = 1;
 export const MAX_SEATS = 20;
 export const TABLE_SHAPES: readonly TableShape[] = ['round', 'square', 'rectangle'];
 export const SHAPE_LABELS: Record<TableShape, string> = {round: 'მრგვალი', square: 'კვადრატული', rectangle: 'მართკუთხა'};
-export type TableStatus = 'free' | 'occupied' | 'unsent' | 'partial';
-export const STATUS_LABELS: Record<TableStatus, string> = {free: 'თავისუფალი', occupied: 'დაკავებული', unsent: 'გაუგზავნელი პოზიციებით', partial: 'ნაწილობრივ გადახდილი'};
+export type TableStatus = 'free' | 'occupied';
+export const STATUS_LABELS: Record<TableStatus, string> = {free: 'თავისუფალი', occupied: 'დაკავებული'};
 export const CHAIR = 24;
 export const GAP = 6;
 const MAX_PLAN_TABLES = 200;
@@ -100,12 +100,9 @@ export function chairPositions(layout: Pick<TableLayout, 'seats' | 'shape'>): {x
     ];
 }
 
-// An open order only keeps payments while something is still due, so payments mean a partial payment.
+// A table is occupied while it has an open order.
 export function tableStatus(order: Order | undefined): TableStatus {
-    if (!order) return 'free';
-    if (order.payments.length > 0) return 'partial';
-    if (order.lines.some(l => l.quantity - l.voidQuantity - l.sentQuantity > 0)) return 'unsent';
-    return 'occupied';
+    return order ? 'occupied' : 'free';
 }
 
 function rect(layout: TableLayout): Rect {

@@ -124,11 +124,11 @@ test('floor plan status and applyFloorPlan on a real state', () => {
  const id = s.orders[0].id;
  assert.equal(tableStatus(s.orders[0]), 'occupied');
  s = run(s, 'addItem', {orderId: id, productId: 'product-1', quantity: 2});
- assert.equal(tableStatus(s.orders[0]), 'unsent');
+ assert.equal(tableStatus(s.orders[0]), 'occupied');
  s = run(s, 'sendOrder', {orderId: id});
  assert.equal(tableStatus(s.orders[0]), 'occupied');
  s = run(s, 'pay', {orderId: id, method: 'cash', amount: 100});
- assert.equal(tableStatus(s.orders[0]), 'partial');
+ assert.equal(tableStatus(s.orders[0]), 'occupied');
  const copy = structuredClone(s);
  assert.throws(() => applyFloorPlan(copy, {zoneId: 'hall', tables: [], removeIds: ['table-1']}, {newId: () => 'n'}));
  assert.deepEqual(copy, s);

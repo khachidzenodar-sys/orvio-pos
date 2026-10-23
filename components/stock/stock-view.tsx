@@ -4,14 +4,13 @@ import type {PosState} from '@/lib/pos';
 import {StockLevels} from '@/components/stock/stock-levels';
 import {MovementHistory, FoodCostReport} from '@/components/stock/stock-reports';
 import {CountForm, ProductionForm, ReceiptForm, WriteOffForm} from '@/components/stock/stock-forms';
-import {RecipesPanel} from '@/components/stock/recipe-editor';
 
 export type StockAct = (action: string, payload: Record<string, unknown>) => Promise<unknown>;
 export type StockProps = {state: PosState; busy: boolean; error: string; act: StockAct};
 
 const tabs = [
   ['levels', 'ნაშთები'], ['receipt', 'მიღება'], ['writeoff', 'ჩამოწერა'], ['count', 'ინვენტარიზაცია'],
-  ['production', 'წარმოება'], ['recipes', 'კალკულაციები'], ['history', 'მოძრაობები'], ['foodcost', 'ფუდქოსტი'],
+  ['production', 'წარმოება'], ['history', 'მოძრაობები'], ['foodcost', 'ფუდქოსტი'],
 ] as const;
 type Tab = typeof tabs[number][0];
 
@@ -25,7 +24,6 @@ export function StockView(props: StockProps) {
     {tab === 'writeoff' && <WriteOffForm {...props}/>}
     {tab === 'count' && <CountForm {...props}/>}
     {tab === 'production' && <ProductionForm {...props}/>}
-    {tab === 'recipes' && <RecipesPanel {...props}/>}
     {tab === 'history' && <MovementHistory state={props.state}/>}
     {tab === 'foodcost' && <FoodCostReport state={props.state}/>}
   </>;

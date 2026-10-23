@@ -177,3 +177,16 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .productplaceholder{display:grid;place-items:center;font-size:36px;font-weight:700;color:hsl(var(--hue) 30% 32%);background:linear-gradient(135deg,hsl(var(--hue) 45% 90%),hsl(var(--hue) 38% 78%))}
 .productinfo{display:flex;flex-direction:column;gap:6px;flex:1;padding:8px 10px 10px}.product .productinfo h3{margin:0;font-size:13px;line-height:1.3;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.productinfo b{margin-top:auto;font-size:13px;color:var(--teal)}
 .productwrap .noteadd{position:absolute;top:6px;right:6px;width:34px;height:34px;padding:0;border:1px solid #ffffffcc;border-radius:50%;background:#ffffffe0;color:var(--ink);font-size:15px;line-height:1;box-shadow:0 2px 6px #0f2f2722}.productwrap .noteadd:hover{background:#fff}
+/* Management (მართვა): side menu + one compact section at a time */
+.settingslayout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;align-items:start;max-width:1180px}
+.settingsnav{position:sticky;top:16px;display:flex;flex-direction:column;gap:4px;padding:8px;background:#fffdf8;border:1px solid var(--line);border-radius:14px}
+.settingsnav button{justify-content:flex-start;text-align:left;border:0;background:none;padding:10px 12px;border-radius:10px;font-size:13px;color:var(--ink)}
+.settingsnav button:hover{background:#f3efe6}.settingsnav button.selected{background:#163a32;color:#fff;font-weight:600}
+.settingspane{min-width:0}.settingspane>.toolbar{margin-bottom:12px}.settingspane .panel table td,.settingspane .panel table th{padding:9px 12px}
+.settingspane>.panel.pad,.settingspane>section.panel{max-width:640px}
+.settingslists{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.settingslists .panel.pad{padding:14px 16px}.settingslists h2{font-size:15px;margin:0}
+.settingslists .summaryrow{padding:7px 0;font-size:13px}.settingslists .summaryrow button{padding:5px 10px;font-size:12px}
+.layoutsettings .floorplan{max-width:860px;margin:0}
+@media(max-width:900px){.settingslayout{grid-template-columns:1fr}.settingsnav{position:static;flex-direction:row;flex-wrap:wrap}.settingsnav button{flex:0 0 auto}}
+.tablesview .stats.compact{grid-template-columns:repeat(3,minmax(0,1fr))}
