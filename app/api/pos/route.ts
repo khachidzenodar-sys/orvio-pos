@@ -3,7 +3,7 @@ import { readStore, saveStore } from '@/lib/server/store';
 import { ServiceUnavailable, sameOrigin } from '@/lib/server/config';
 export const runtime = 'nodejs';
 import { applyAction, INVENTORY_ACTIONS, normalizeState, seedState, type PosState } from '@/lib/pos';
-const managerActions: string[] = ['discount', 'voidItem', 'changePin', 'saveTable', 'saveZone', 'saveDepartment', 'deleteTable', 'deleteDepartment', 'closeDay', 'saveFloorPlan', 'setProductPhoto', 'setReceiptLogo', 'saveStaff', 'archiveStaff', ...INVENTORY_ACTIONS];
+const managerActions: string[] = ['discount', 'voidItem', 'changePin', 'saveTable', 'saveZone', 'saveDepartment', 'deleteTable', 'deleteDepartment', 'closeDay', 'saveFloorPlan', 'setProductPhoto', 'setReceiptLogo', 'saveStaff', 'archiveStaff', 'setFeature', ...INVENTORY_ACTIONS];
 type Secret = {
     salt: string;
     hash: string;

@@ -1,4 +1,4 @@
-import {applyAction, demoSeedState, INVENTORY_ACTIONS, isQuotaError, isValidDayCloses, isValidInventory, isValidProductPhoto, isValidTableLayout, normalizeState, PHOTO_MESSAGES, type PosState} from './pos';
+import {applyAction, demoSeedState, FEATURE_DEFAULTS, INVENTORY_ACTIONS, isQuotaError, isValidDayCloses, isValidInventory, isValidProductPhoto, isValidTableLayout, normalizeState, PHOTO_MESSAGES, type PosState} from './pos';
 import type {KeyValueStore} from './ports/storage';
 
 export const DEMO_STORAGE_KEY = 'orvio.demo.v1';
@@ -6,7 +6,7 @@ export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
 export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo','saveStaff','archiveStaff',...INVENTORY_ACTIONS];
+const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo','saveStaff','archiveStaff','setFeature',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
 const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';
@@ -45,6 +45,7 @@ function validState(v:unknown):v is PosState {
   && (v.inventory===undefined||isValidInventory(v.inventory,(v.products as {id:string}[]).map(p=>p.id)))
   && (v.dayCloses===undefined||isValidDayCloses(v.dayCloses))
   && (v.staff===undefined||records(v.staff,r=>typeof r.id==='string'&&optionText(r.name,60)&&typeof r.pin==='string'&&/^\d{4,8}$/.test(r.pin)&&(r.archived===undefined||typeof r.archived==='boolean')))
+  && (v.features===undefined||(isObject(v.features)&&Object.entries(v.features).every(([k,x])=>k in FEATURE_DEFAULTS&&typeof x==='boolean')))
   && (v.receipt===undefined||(isObject(v.receipt)&&Object.keys(v.receipt).every(k=>k==='logo')&&(v.receipt.logo===undefined||isValidProductPhoto(v.receipt.logo))));
 }
 // Throws corruptError for anything that is not a complete, valid document.

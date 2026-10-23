@@ -119,7 +119,11 @@ export type PosState = {
     dayCloses?: DayClose[]; // absent in old documents = empty history
     receipt?: {logo?: string}; // printed at the top of the guest check
     staff?: Staff[]; // waiters; when any are active, opening a table needs a waiter code
+    features?: Partial<Features>; // on/off switches from მართვა → ფუნქციები; missing keys use FEATURE_DEFAULTS
 };
+export type Features = {sendDelay: boolean; waiterCode: boolean; ticketNote: boolean; productPhotos: boolean; changeCalculator: boolean};
+export const FEATURE_DEFAULTS: Features = {sendDelay: true, waiterCode: true, ticketNote: true, productPhotos: true, changeCalculator: true};
+export const features = (s: Pick<PosState, 'features'>): Features => ({...FEATURE_DEFAULTS, ...s.features});
 export type Staff = {id: string; name: string; pin: string; archived?: boolean};
 export const activeStaff = (s: Pick<PosState, 'staff'>) => (s.staff ?? []).filter(x => !x.archived);
 const id = () => crypto.randomUUID();
@@ -218,7 +222,7 @@ export function applyAction(original: PosState, action: string, p: Record<string
         case 'openOrder': {
             assert(s.tables.some(t => t.id === p.tableId && !t.archived), 'მაგიდა ვერ მოიძებნა');
             if (!s.orders.some(o => o.tableId === p.tableId && o.status === 'open')) {
-                const staff = activeStaff(s);
+                const staff = features(s).waiterCode ? activeStaff(s) : [];
                 const waiter = staff.length ? staff.find(x => x.pin === p.waiterPin) : undefined;
                 assert(!staff.length || waiter, 'მიმტნის კოდი არასწორია');
                 s.orders.push({ id: id(), tableId: String(p.tableId), status: 'open', createdAt: now, lines: [], discountPercent: 0, payments: [], ...(waiter ? { waiterId: waiter.id, waiterName: waiter.name } : {}) });
@@ -465,6 +469,13 @@ export function applyAction(original: PosState, action: string, p: Record<string
             assert(member, 'მიმტანი ვერ მოიძებნა');
             member.archived = true;
             log(`მიმტანი ამოღებულია: ${member.name}`);
+            break;
+        }
+        case 'setFeature': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            assert(typeof p.key === 'string' && p.key in FEATURE_DEFAULTS && typeof p.on === 'boolean', 'ფუნქცია ვერ მოიძებნა');
+            s.features = {...s.features, [p.key]: p.on};
+            log(`ფუნქცია ${p.key}: ${p.on ? 'ჩართულია' : 'გამორთულია'}`);
             break;
         }
         case 'setReceiptLogo': {

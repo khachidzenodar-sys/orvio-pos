@@ -14,7 +14,7 @@ test('order cards and menu thumbnails use lazy, async, sized images with the pro
         assert.ok(img, cls);
         for (const attr of ['loading="lazy"', 'decoding="async"', 'alt={p.name}', 'src={p.photo}', 'width={', 'height={']) assert.ok(img.includes(attr), `${cls}: ${attr}`);
     }
-    assert.match(workspace, /className=\{p\.photo\?'product hasphoto':'product'\}/);
+    assert.match(workspace, /className=\{p\.photo&&features\(s\)\.productPhotos\?'product hasphoto':'product'\}/);
 });
 
 test('photo field: accepted types, no forced camera, and nothing leaks into the product form', () => {

@@ -225,3 +225,13 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .changecalc .change b{font-size:22px;color:#1f6e4f}.changecalc .change.short b{color:#b3261e}
 .tablecard .tablebottom{justify-content:flex-end;min-height:22px}.tablecard .tablebottom b{color:#b3261e}
 .plantable .plantag rect{fill:#d32f2f}.plantable .plantag text{fill:#fff;font-size:17px;font-weight:700}
+/* Hold-back toast before an order goes to the departments */
+.sendcountdown{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:16px;padding:14px 18px;min-width:360px;max-width:calc(100vw - 32px);border-radius:14px;background:#163a32;color:#fff;box-shadow:0 10px 30px #0f2f2740;overflow:hidden;font-size:14px}
+.sendcountdown>div{flex:1}.sendcountdown button{background:#fff;color:#b3261e;border:0;border-radius:10px;padding:10px 18px;font-weight:700}
+.sendcountdown i{position:absolute;left:0;bottom:0;height:4px;background:#d4af6b;transition:width .2s linear}
+@media print{.sendcountdown{display:none}}
+/* Feature switches (მართვა → ფუნქციები) */
+.features{max-width:720px}.featurerow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}.featurerow:last-child{border-bottom:0}
+.featurerow b{display:block;font-size:14px}.featurerow small{color:var(--muted);font-size:12px}
+.switch{flex:0 0 auto;width:48px;height:28px;padding:0;border-radius:14px;border:0;background:#cfd6cf;position:relative}.switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:left .15s}
+.switch.on{background:#1f6e4f}.switch.on span{left:23px}

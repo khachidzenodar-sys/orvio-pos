@@ -21,7 +21,7 @@ function ChangeCalculator({amount}: {amount: number}) {
 }
 
 // One payment window: method buttons, the amount, and for cash the change to return; "გაყოფა" splits cash and card.
-export function PaymentFields({total, paid, due}: {total: number; paid: number; due: number}) {
+export function PaymentFields({total, paid, due, change = true}: {total: number; paid: number; due: number; change?: boolean}) {
     const [mode, setMode] = useState<Mode>('cash');
     const [amount, setAmount] = useState(fixed(due));
     const [cash, setCash] = useState('');
@@ -40,12 +40,12 @@ export function PaymentFields({total, paid, due}: {total: number; paid: number; 
         {mode !== 'split' ? <>
             <input type="hidden" name="method" value={mode}/>
             <label>გადასახდელი თანხა (₾)<input name="amount" type="number" inputMode="decimal" min="0" step="0.01" max={due / 100} value={amount} onChange={e => setAmount(e.target.value)}/></label>
-            {mode === 'cash' && <ChangeCalculator key={amount} amount={toTetri(amount)}/>}
+            {change && mode === 'cash' && <ChangeCalculator key={amount} amount={toTetri(amount)}/>}
         </> : <>
             <label>ნაღდი (₾)<input name="cash" type="number" inputMode="decimal" min="0" step="0.01" max={due / 100} value={cash} autoFocus onChange={e => { setCash(e.target.value); fill(e.target.value, setCard); }}/></label>
             <label>ბარათი (₾)<input name="card" type="number" inputMode="decimal" min="0" step="0.01" max={due / 100} value={card} onChange={e => { setCard(e.target.value); fill(e.target.value, setCash); }}/></label>
             {rest !== 0 && <p className={rest < 0 ? 'error' : 'muted'}>{rest < 0 ? `ჯამი აღემატება გადასახდელს ${money(-rest)}-ით` : `გადაუხდელი დარჩება: ${money(rest)}`}</p>}
-            {toTetri(cash) > 0 && <ChangeCalculator key={cash} amount={toTetri(cash)}/>}
+            {change && toTetri(cash) > 0 && <ChangeCalculator key={cash} amount={toTetri(cash)}/>}
         </>}
     </>;
 }
