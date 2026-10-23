@@ -7,6 +7,9 @@ import {closeDay, isValidDayCloses} from './day-report.ts';
 import type {DayClose} from './day-report';
 // @ts-expect-error Explicit extension is required by the Node strip-types test runner.
 import {applyFloorPlan, isValidTableLayout} from './floor-plan.ts';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {isQuotaError, isValidProductPhoto, photoLimitError, PHOTO_MESSAGES} from './product-photo.ts';
+export {isQuotaError, isValidProductPhoto, PHOTO_MESSAGES};
 export {emptyInventory, isValidInventory, INVENTORY_ACTIONS, lineBalances, orderTotals, isValidDayCloses, isValidTableLayout};
 export type {Inventory};
 export type Department = {
@@ -37,7 +40,11 @@ export type Product = {
     active: boolean;
     quickNotes?: string[];
     addons?: Addon[];
+    // data:image/(jpeg|png|webp);base64,… ≤ PHOTO_MAX_CHARS. Absent when there is no photo; never null or ''.
+    photo?: string;
 };
+// Photos change only through this manager action, never through saveProduct.
+export const PHOTO_ACTION = 'setProductPhoto';
 export type Line = {
     id: string;
     productId: string;
@@ -382,11 +389,31 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const previous = idx >= 0 ? getProductOptions(s.products[idx]) : {quickNotes: [], addons: []};
             const value: Product = { id: productId, name, category, price, departmentIds: [...new Set(p.departmentIds as string[])], active: p.active,
                 quickNotes: p.quickNotes === undefined ? previous.quickNotes : quickNoteConfig(p.quickNotes),
-                addons: p.addons === undefined ? previous.addons : addonConfig(p.addons) };
+                addons: p.addons === undefined ? previous.addons : addonConfig(p.addons),
+                ...(idx >= 0 && s.products[idx].photo ? {photo: s.products[idx].photo} : {}) };
             if (idx >= 0)
                 s.products[idx] = value;
             else
                 s.products.push(value);
+            break;
+        }
+        case 'setProductPhoto': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const product = s.products.find(x => x.id === p.productId);
+            assert(product, 'პროდუქტი ვერ მოიძებნა');
+            // The audit records what changed, never the data URL itself.
+            if (p.photo === null) {
+                assert(product.photo, 'პროდუქტს ფოტო არ აქვს');
+                delete product.photo;
+                log(`${product.name}: ფოტო წაიშალა`);
+            } else {
+                assert(isValidProductPhoto(p.photo), PHOTO_MESSAGES.invalid);
+                const limit = photoLimitError(s.products, product.id, p.photo);
+                assert(!limit, limit ?? '');
+                const replaced = !!product.photo;
+                product.photo = p.photo;
+                log(`${product.name}: ფოტო ${replaced ? 'შეიცვალა' : 'დაემატა'}`);
+            }
             break;
         }
         case 'saveTable':

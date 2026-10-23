@@ -6,5 +6,6 @@ export function loadDomain(evaluate, {inventory} = {}) {
     './order-totals.ts': totals,
     './day-report.ts': evaluate('../lib/day-report.ts', {'./order-totals.ts': totals}),
     './floor-plan.ts': evaluate('../lib/floor-plan.ts'),
+    './product-photo.ts': evaluate('../lib/product-photo.ts'),
   });
 }

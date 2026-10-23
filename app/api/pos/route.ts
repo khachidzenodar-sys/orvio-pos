@@ -3,7 +3,7 @@ import { readStore, saveStore } from '@/lib/server/store';
 import { ServiceUnavailable, sameOrigin } from '@/lib/server/config';
 export const runtime = 'nodejs';
 import { applyAction, INVENTORY_ACTIONS, normalizeState, seedState, type PosState } from '@/lib/pos';
-const managerActions: string[] = ['discount', 'voidItem', 'changePin', 'saveTable', 'saveZone', 'saveDepartment', 'deleteTable', 'deleteDepartment', 'closeDay', 'saveFloorPlan', ...INVENTORY_ACTIONS];
+const managerActions: string[] = ['discount', 'voidItem', 'changePin', 'saveTable', 'saveZone', 'saveDepartment', 'deleteTable', 'deleteDepartment', 'closeDay', 'saveFloorPlan', 'setProductPhoto', ...INVENTORY_ACTIONS];
 type Secret = {
     salt: string;
     hash: string;
@@ -39,6 +39,10 @@ export async function GET(request: Request) { try {
     if (!user)
         return json({ error: 'ავტორიზაცია აუცილებელია' }, 401);
     const row = await read(user.userId);
+    // Background refresh sends ?since=<version>; skip the (photo-heavy) state when nothing changed.
+    const since = request?.url ? new URL(request.url).searchParams.get('since') : null;
+    if (since !== null && /^\d{1,15}$/.test(since) && Number(since) === row.version)
+        return json({ unchanged: true, version: row.version, userId: user.userId });
     return response(JSON.parse(row.document), row.version, user.userId);
 }
 catch {

@@ -1,4 +1,4 @@
-import {applyAction, demoSeedState, INVENTORY_ACTIONS, isValidDayCloses, isValidInventory, isValidTableLayout, normalizeState, type PosState} from './pos';
+import {applyAction, demoSeedState, INVENTORY_ACTIONS, isQuotaError, isValidDayCloses, isValidInventory, isValidProductPhoto, isValidTableLayout, normalizeState, PHOTO_MESSAGES, type PosState} from './pos';
 import type {KeyValueStore} from './ports/storage';
 
 export const DEMO_STORAGE_KEY = 'orvio.demo.v1';
@@ -6,9 +6,10 @@ export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
 export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan',...INVENTORY_ACTIONS];
+const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
+const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';
 const conflictError = 'დემო სხვა ფანჯარაში შეიცვალა. განაახლეთ და სცადეთ ხელახლა.';
 const isObject = (v:unknown):v is Record<string,unknown> => !!v && typeof v==='object' && !Array.isArray(v);
 const strings = (v:unknown):v is string[] => Array.isArray(v) && v.every(x=>typeof x==='string');
@@ -32,7 +33,7 @@ function validState(v:unknown):v is PosState {
  if(!isObject(v))return false;
  return records(v.departments,identity) && records(v.zones,identity)
   && records(v.tables,r=>identity(r)&&typeof r.zoneId==='string'&&(r.layout===undefined||isValidTableLayout(r.layout)))
-  && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean'&&quickNotes(r.quickNotes)&&addons(r.addons))
+  && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean'&&quickNotes(r.quickNotes)&&addons(r.addons)&&(r.photo===undefined||isValidProductPhoto(r.photo)))
   && records(v.orders,r=>typeof r.id==='string'&&typeof r.tableId==='string'&&['open','closed'].includes(String(r.status))&&date(r.createdAt)&&(r.closedAt===undefined||date(r.closedAt))&&(r.discountAmount===undefined||number(r.discountAmount))&&(r.receiptPrintCount===undefined||number(r.receiptPrintCount))&&typeof r.discountPercent==='number'&&Number.isFinite(r.discountPercent)
    && records(r.lines,l=>identity(l)&&typeof l.productId==='string'&&number(l.price)&&number(l.quantity)&&number(l.voidQuantity)&&number(l.sentQuantity)&&typeof l.note==='string'&&strings(l.departmentIds)&&lineOptions(l))
    && records(r.payments,p=>typeof p.id==='string'&&['cash','card','other'].includes(String(p.method))&&number(p.amount)&&date(p.createdAt)&&records(p.allocations,a=>typeof a.lineId==='string'&&number(a.amount))))
@@ -63,11 +64,12 @@ export type DemoStore = ReturnType<typeof createDemoStore>;
 // This PIN is a public demo workflow, not an access-control boundary. Real
 // accounts continue to verify their own hashed PIN in the protected API.
 export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(), storageMessage=storageError) {
- const save=async(key:string,raw:string)=>{
+ // A rejected setItem leaves the previous value in place, so a full quota never corrupts the document.
+ const save=async(key:string,raw:string,quotaMessage=quotaError)=>{
   try{await storage.setItem(key,raw);}
-  catch{throw new Error(storageMessage);}
+  catch(e){throw new Error(isQuotaError(e)?quotaMessage:storageMessage);}
  };
- const write=(doc:DemoDocument)=>save(DEMO_STORAGE_KEY,JSON.stringify(doc));
+ const write=(doc:DemoDocument,quotaMessage?:string)=>save(DEMO_STORAGE_KEY,JSON.stringify(doc),quotaMessage);
  const exists=async(key:string)=>{
   try{return await storage.getItem(key)!==null;}
   catch{throw new Error(storageMessage);}
@@ -103,7 +105,7 @@ export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(
     if(typeof payload.newPin!=='string'||!/^\d{4,12}$/.test(payload.newPin))throw new Error('კოდი უნდა შეიცავდეს 4–12 ციფრს');
     doc.pin=payload.newPin;
    }else doc.state=applyAction(doc.state,action,payload,manager);
-   doc.version++;await write(doc);return snapshot(doc);
+   doc.version++;await write(doc,action==='setProductPhoto'?PHOTO_MESSAGES.quota:quotaError);return snapshot(doc);
   }),
   reset:()=>withLock(async()=>{const doc=fresh();await write(doc);return snapshot(doc);}),
   exportBackup:()=>withLock(async()=>(await codec()).createBackup(await read(),new Date())),
