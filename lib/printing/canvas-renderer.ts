@@ -79,6 +79,18 @@ async function loadFonts(rows:Row[]){
  await Promise.all(Array.from(fonts,font=>document.fonts.load(font,SAMPLE).catch(()=>[])));
 }
 
+// Thermal paper is black or white: any visibly non-white logo pixel prints black, so light or coloured logos do not vanish.
+const LOGO_WHITE=235;
+function drawLogo(ctx:CanvasRenderingContext2D,op:Extract<Op,{kind:'image'}>){
+ ctx.drawImage(op.image,op.x,op.y,op.width,op.height);
+ const area=ctx.getImageData(op.x,op.y,op.width,op.height),px=area.data;
+ for(let i=0;i<px.length;i+=4){
+  const a=px[i+3]/255,lum=(0.299*px[i]+0.587*px[i+1]+0.114*px[i+2])*a+255*(1-a);
+  const v=lum<LOGO_WHITE?0:255;px[i]=px[i+1]=px[i+2]=v;px[i+3]=255;
+ }
+ ctx.putImageData(area,op.x,op.y);
+}
+
 // A logo that cannot be decoded is skipped rather than blocking the print.
 async function loadImages(rows:Row[]):Promise<Images>{
  const images:Images=new Map();
@@ -102,7 +114,7 @@ export async function renderRows(rows:Row[]):Promise<Bitmap>{
  ctx.fillStyle='#000';ctx.textBaseline='middle';
  for(const op of ops){
   if(op.kind==='rule'){ctx.fillRect(MARGIN,op.y,CONTENT,RULE_HEIGHT);continue;}
-  if(op.kind==='image'){ctx.drawImage(op.image,op.x,op.y,op.width,op.height);ctx.fillStyle='#000';continue;}
+  if(op.kind==='image'){drawLogo(ctx,op);continue;}
   ctx.font=op.font;ctx.textAlign=op.align;ctx.fillText(op.text,op.x,op.y);
  }
  return toBitmap(ctx.getImageData(0,0,WIDTH,height).data,WIDTH,height);
