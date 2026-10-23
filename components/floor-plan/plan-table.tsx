@@ -9,6 +9,7 @@ type Props = {
     name: string;
     status: TableStatus;
     amount?: string;
+    showAmount?: boolean; // small red tag on the table's lower edge (floor plan only)
     selected?: boolean;
     onOpen?: () => void;
     onPointerDown?: (event: PointerEvent<SVGGElement>) => void;
@@ -43,7 +44,7 @@ function Chair({x, y, angle}: {x: number; y: number; angle: number}) {
     </g>;
 }
 
-export function PlanTable({layout, name, status, amount, selected, onOpen, onPointerDown}: Props) {
+export function PlanTable({layout, name, status, amount, showAmount, selected, onOpen, onPointerDown}: Props) {
     const size = tableSize(layout), w = size.width, h = size.height;
     const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -71,5 +72,9 @@ export function PlanTable({layout, name, status, amount, selected, onOpen, onPoi
             const length = fit(l.text, l.size);
             return <text key={l.cls} className={l.cls} y={l.y} textLength={length} lengthAdjust={length ? 'spacingAndGlyphs' : undefined}>{l.text}</text>;
         })}
+        {showAmount && amount && status === 'occupied' && <g className="plantag" transform={`translate(0 ${(layout.rotation === 90 ? w : h) / 2})`}>
+            <rect x={-(amount.length * 5.6 + 10)} y={-12} width={amount.length * 11.2 + 20} height={24} rx={12}/>
+            <text y={1}>{amount}</text>
+        </g>}
     </g>;
 }

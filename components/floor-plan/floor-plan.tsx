@@ -16,7 +16,7 @@ function ZonePlan({state, zoneId, busy, onOpen}: Props) {
         {items.map(({table, layout}) => {
             const order = state.orders.find(o => o.tableId === table.id && o.status === 'open');
             return <PlanTable key={table.id} layout={layout} name={table.name} status={tableStatus(order)}
-                amount={order ? money(orderTotals(order).due) : undefined} onOpen={() => { if (!busy) onOpen(table.id); }}/>;
+                amount={order ? money(orderTotals(order).due) : undefined} showAmount onOpen={() => { if (!busy) onOpen(table.id); }}/>;
         })}
     </svg>;
 }
