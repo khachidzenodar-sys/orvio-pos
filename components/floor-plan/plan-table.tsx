@@ -10,6 +10,7 @@ type Props = {
     status: TableStatus;
     amount?: string;
     showAmount?: boolean; // small red tag on the table's lower edge (floor plan only)
+    hideName?: boolean; // the caller writes the name next to the drawing instead (grid cards)
     selected?: boolean;
     onOpen?: () => void;
     onPointerDown?: (event: PointerEvent<SVGGElement>) => void;
@@ -44,7 +45,7 @@ function Chair({x, y, angle}: {x: number; y: number; angle: number}) {
     </g>;
 }
 
-export function PlanTable({layout, name, status, amount, showAmount, selected, onOpen, onPointerDown}: Props) {
+export function PlanTable({layout, name, status, amount, showAmount, hideName, selected, onOpen, onPointerDown}: Props) {
     const size = tableSize(layout), w = size.width, h = size.height;
     const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -52,7 +53,7 @@ export function PlanTable({layout, name, status, amount, showAmount, selected, o
         onOpen?.();
     };
     // The table shows only its name (long names are squeezed to fit); colour tells free from occupied.
-    const lines = [{text: name, y: 0, cls: 'planname', size: 28}];
+    const lines = hideName ? [] : [{text: name, y: 0, cls: 'planname', size: 28}];
     const room = (layout.rotation === 90 ? h : w) - 12;
     const fit = (text: string, size: number) => text.length * size * 0.56 > room ? room : undefined;
     const shape = (cls: string, inset = 0) => layout.shape === 'round'

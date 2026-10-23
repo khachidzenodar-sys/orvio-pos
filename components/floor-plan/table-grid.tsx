@@ -17,9 +17,9 @@ export function TableGrid({state, zoneId, busy, onOpen}: {state: PosState; zoneI
         return <button disabled={busy} key={table.id} className={`tablecard ${status}`} onClick={() => onOpen(table.id)}>
             <svg className="tabledrawing" viewBox={`${-box.width / 2} ${-box.height / 2} ${box.width} ${box.height}`} aria-hidden="true">
                 <TableDefs/>
-                <PlanTable layout={layout} name={table.name} status={status} amount={due}/>
+                <PlanTable layout={layout} name={table.name} status={status} amount={due} hideName/>
             </svg>
-            <div className="tablebottom">{due && <b>{due}</b>}</div>
+            <div className="tablebottom"><span className="tablename">მაგიდა {table.name}</span>{due && <b>{due}</b>}</div>
         </button>;
     })}</div>;
 }
