@@ -203,3 +203,4 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .receiptsettings{max-width:560px}.receiptsettings .flex{gap:8px;flex-wrap:wrap}.logopreview{display:grid;place-items:center;min-height:120px;margin:12px 0;padding:12px;border:1px dashed var(--line);border-radius:12px;background:#fff}.logopreview img{max-width:240px;max-height:150px;filter:grayscale(1)}
 .logosave{margin-top:12px;display:flex;flex-direction:column;gap:8px}.visuallyhidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .rowsprintlogo{display:block;max-width:55%;max-height:120px;margin:0 auto 8px;filter:grayscale(1)}
+.rowsprintmark{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px}.rowsprintmark img{height:18px;width:auto;filter:grayscale(1) brightness(.2)}

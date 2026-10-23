@@ -18,6 +18,7 @@ const SAMPLE='ქართული ₾';
 type TextRow=Extract<Row,{text:string}>;
 type Op={kind:'text';font:string;text:string;x:number;y:number;align:CanvasTextAlign}|{kind:'rule';y:number}|{kind:'image';image:CanvasImageSource;x:number;y:number;width:number;height:number};
 const LOGO_MAX={width:320,height:200};
+const MARK_HEIGHT=30,MARK_GAP=8;
 type Images=Map<string,{image:CanvasImageSource;width:number;height:number}>;
 
 const fontOf=(row:TextRow)=>{const size=SIZES[row.size||'normal'];return `${size.bold||row.bold?'bold ':''}${size.px}px ${FAMILY}`;};
@@ -51,6 +52,15 @@ function layout(ctx:CanvasRenderingContext2D,rows:Row[],images:Images=new Map())
  const ops:Op[]=[];let y=PADDING_TOP;
  for(const row of rows){
   if('gap' in row){y+=row.gap;continue;}
+  if('image' in row&&row.caption!==undefined){
+   // Small mark followed by a caption on one centred line (footer brand).
+   const font=`${SIZES.normal.px}px ${FAMILY}`;ctx.font=font;
+   const img=images.get(row.image),markW=img?Math.round(img.width*MARK_HEIGHT/img.height):0;
+   const textW=ctx.measureText(row.caption).width,total=markW+(img?MARK_GAP:0)+textW,left=Math.round((WIDTH-total)/2);
+   if(img)ops.push({kind:'image',image:img.image,x:left,y,width:markW,height:MARK_HEIGHT});
+   ops.push({kind:'text',font,text:row.caption,x:left+total,y:y+MARK_HEIGHT/2,align:'right'});
+   y+=MARK_HEIGHT+6;continue;
+  }
   if('image' in row){
    const img=images.get(row.image);if(!img)continue;
    const scale=Math.min(1,LOGO_MAX.width/img.width,LOGO_MAX.height/img.height),width=Math.round(img.width*scale),height=Math.round(img.height*scale);

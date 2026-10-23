@@ -78,8 +78,9 @@ test('the customer receipt carries the same content, in the same order, as the p
     'ნაღდი: 10.00 ₾',
     'ბარათი: 5.00 ₾',
     'მადლობა სტუმრობისთვის!',
-    'ORVIO · RESTAURANT POS',
   ]);
+  const footer = layout.receiptRows(s.order, s.state).at(-1);
+  assert.deepEqual(footer, {image: '/orvio-mark.svg', caption: 'ORVIO · RESTAURANT POS'}, 'the brand line ends with the ORVIO mark before the text');
   assert.ok(totals.discount > 0 && totals.due > 0);
   assert.ok(!lines.some(l => l.includes('ასლი')), 'the first print is not a copy');
 

@@ -6,7 +6,7 @@ export type Row =
  |{text:string;right?:string;align?:'left'|'center'|'right';size?:'normal'|'large'|'huge';bold?:boolean}
  |{rule:true}
  |{gap:number}
- |{image:string};
+ |{image:string;caption?:string};
 
 const RULE:Row={rule:true};
 
@@ -63,7 +63,7 @@ export function receiptRows(order:Order,state:PosState,printedAt=new Date()):Row
  const summary:[string,number][]=[['სულ',totals.subtotal],['ფასდაკლება',totals.discount],['ჯამი',totals.total],['გადახდილია',totals.paid],['დარჩენილია',totals.due]];
  for(const [label,value] of summary)rows.push({text:label,right:money(value),bold:label==='ჯამი'});
  for(const payment of order.payments)rows.push({text:`${methods[payment.method]}: ${money(payment.amount)}`});
- rows.push(RULE,{gap:8},{text:'მადლობა სტუმრობისთვის!',align:'center'},{text:'ORVIO · RESTAURANT POS',align:'center'});
+ rows.push(RULE,{gap:8},{text:'მადლობა სტუმრობისთვის!',align:'center'},{image:'/orvio-mark.svg',caption:'ORVIO · RESTAURANT POS'});
  return rows;
 }
 
