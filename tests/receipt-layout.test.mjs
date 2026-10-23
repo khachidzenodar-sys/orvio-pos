@@ -38,7 +38,7 @@ function scenario() {
   return {act, orderId, get state() { return state; }, get order() { return state.orders[0]; }};
 }
 
-const texts = rows => rows.filter(r => 'text' in r).map(r => [r.lead, r.text, r.right].filter(x => x !== undefined).join(' '));
+const texts = rows => rows.filter(r => 'text' in r).map(r => [r.lead, r.label, r.text, r.right].filter(x => x !== undefined).join(' '));
 function assertInOrder(lines, expected) {
   let at = -1;
   for (const text of expected) {
@@ -190,4 +190,15 @@ test('only the quantity is bold on a dish line; price and total stay regular', (
   const rows = layout.receiptRows(s.order, s.state).filter(r => 'lead' in r);
   assert.ok(rows.length >= 3);
   for (const row of rows) { assert.match(row.lead, /^\d+ ×$/); assert.ok(!row.bold); assert.match(row.text, /₾$/); }
+});
+
+test('note and paid add-on text print bold after a regular label, on the guest check and the kitchen ticket', () => {
+  const s = scenario();
+  const ticket = s.state.tickets.find(t => t.departmentId === 'kitchen');
+  for (const rows of [layout.receiptRows(s.order, s.state), layout.ticketRows(ticket, s.state)]) {
+    const labelled = rows.filter(r => 'label' in r);
+    assert.deepEqual([...new Set(labelled.map(r => r.label))].sort(), ['შენიშვნა:', 'ფასიანი დანამატი:'].sort());
+    for (const row of labelled) { assert.ok(row.bold); assert.ok(!row.text.startsWith(row.label)); }
+    assert.ok(labelled.some(r => r.label === 'შენიშვნა:' && r.text.includes('კარგად დაბრაწული')));
+  }
 });

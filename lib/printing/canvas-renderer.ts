@@ -33,14 +33,15 @@ function breakWord(ctx:CanvasRenderingContext2D,word:string,max:number):string[]
  return part?[...parts,part]:parts;
 }
 
-function wrap(ctx:CanvasRenderingContext2D,text:string,max:number):string[]{
+function wrap(ctx:CanvasRenderingContext2D,text:string,max:number,firstMax=max):string[]{
  const lines:string[]=[];let line='';
  for(const word of text.split(/\s+/).filter(Boolean)){
+  const limit=()=>lines.length?max:firstMax;
   const candidate=line?`${line} ${word}`:word;
-  if(ctx.measureText(candidate).width<=max){line=candidate;continue;}
+  if(ctx.measureText(candidate).width<=limit()){line=candidate;continue;}
   if(line)lines.push(line);
-  if(ctx.measureText(word).width<=max){line=word;continue;}
-  const pieces=breakWord(ctx,word,max);
+  if(ctx.measureText(word).width<=limit()){line=word;continue;}
+  const pieces=breakWord(ctx,word,limit());
   line=pieces.pop()||'';
   lines.push(...pieces);
  }
@@ -75,6 +76,15 @@ function layout(ctx:CanvasRenderingContext2D,rows:Row[],images:Images=new Map())
    ops.push({kind:'text',font,text:row.text,x:MARGIN+leadW,y:y+height/2,align:'left',lead:{font:leadFont,text:row.lead}});
    if(row.right!==undefined){ctx.font=font;ops.push({kind:'text',font,text:row.right,x:WIDTH-MARGIN,y:y+height/2,align:'right'});}
    y+=height;continue;
+  }
+  if(row.label!==undefined){
+   // Regular label (e.g. "შენიშვნა:") then the bold text, wrapping under the label.
+   const labelFont=`${SIZES[row.size||'normal'].px}px ${FAMILY}`;ctx.font=labelFont;
+   const labelW=ctx.measureText(`${row.label} `).width;
+   ctx.font=font;
+   const label=row.label,lines=wrap(ctx,row.text,CONTENT,CONTENT-labelW);
+   lines.forEach((text,i)=>ops.push({kind:'text',font,text,x:i?MARGIN:MARGIN+labelW,y:y+height*i+height/2,align:'left',...(i?{}:{lead:{font:labelFont,text:label}})}));
+   y+=height*lines.length;continue;
   }
   ctx.font=font;
   const right=row.right,room=right===undefined?CONTENT:CONTENT-ctx.measureText(right).width-COLUMN_GAP;

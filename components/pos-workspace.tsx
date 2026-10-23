@@ -78,12 +78,15 @@ export default function PosWorkspace({mode,platform}:{mode:'demo'|'account';plat
  // Sending to the departments waits SEND_DELAY_MS so a mistaken tap can be cancelled.
  function queueSend(orderId:string,table:string,note:string){
   if(sendTimer.current)return;
-  if(latest.current&&!features(latest.current.state).sendDelay){void sendNow(orderId,table,note);return;}
+  // After sending, the waiter lands back on the tables page; the cancel toast stays visible there.
+  if(latest.current&&!features(latest.current.state).sendDelay){void sendNow(orderId,table,note).then(ok=>{if(ok)setSelected(current=>current===sendingTable(orderId)?'':current);});return;}
   const job={orderId,table,note,until:sendDeadline()};
   setPendingSend(job);
+  setSelected('');
   sendTimer.current=setTimeout(()=>{sendTimer.current=null;setPendingSend(null);void sendNow(orderId,table,note);},SEND_DELAY_MS);
  }
- async function sendNow(orderId:string,table:string,note:string){if(await act('sendOrder',{orderId,...(note?{note}:{})})){setTicketDraft(d=>d.orderId===orderId?{orderId:'',text:''}:d);setNotice(`მაგიდა ${table}: შეკვეთა განყოფილებებში გაიგზავნა`);}}
+ async function sendNow(orderId:string,table:string,note:string){if(await act('sendOrder',{orderId,...(note?{note}:{})})){setTicketDraft(d=>d.orderId===orderId?{orderId:'',text:''}:d);setNotice(`მაგიდა ${table}: შეკვეთა განყოფილებებში გაიგზავნა`);return true;}return false;}
+ const sendingTable=(orderId:string)=>latest.current?.state.orders.find(o=>o.id===orderId)?.tableId;
  function cancelSend(){if(sendTimer.current)clearTimeout(sendTimer.current);sendTimer.current=null;setPendingSend(null);setNotice('გაგზავნა გაუქმდა');}
  async function chooseTable(id:string){if(latest.current&&features(latest.current.state).waiterCode&&activeStaff(latest.current.state).length&&!latest.current.state.orders.some(o=>o.tableId===id&&o.status==='open')){openModal('waiter',id);return;}const d=await act('openOrder',{tableId:id});if(d){setSelected(id);setView('tables');}}
  function printDialog(doc:PrintDocument){setPrint(doc.kind==='receipt'?{rows:receiptRows(doc.order,doc.state)}:doc.kind==='ticket'?{ticket:doc.ticket}:{rows:doc.rows});setTimeout(()=>window.print(),100);}

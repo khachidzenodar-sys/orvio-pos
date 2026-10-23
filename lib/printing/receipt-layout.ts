@@ -3,7 +3,7 @@ import {money,when,grouped,methods} from '@/lib/format';
 
 // Abstract printable lines; the renderer decides pixels. Content mirrors the .printarea in pos-workspace.tsx.
 export type Row =
- |{text:string;right?:string;align?:'left'|'center'|'right';size?:'normal'|'large'|'huge';bold?:boolean;lead?:string} // lead: bold prefix on a short left-aligned line
+ |{text:string;right?:string;align?:'left'|'center'|'right';size?:'normal'|'large'|'huge';bold?:boolean;lead?:string;label?:string} // lead: bold prefix on a short left-aligned line; label: regular prefix before bold, wrapping text
  |{rule:true}
  |{gap:number}
  |{image:string;caption?:string};
@@ -14,15 +14,15 @@ function cashDetails(line:Line):Row[]{
  const rows:Row[]=[];
  if(line.addons?.length){
   rows.push({text:`საბაზო ფასი: ${money(line.basePrice??line.price-line.addons.reduce((sum,addon)=>sum+addon.price,0))}`});
-  for(const addon of line.addons)rows.push({text:`ფასიანი დანამატი: ${addon.name} +${money(addon.price)} / ერთ.`});
+  for(const addon of line.addons)rows.push({label:'ფასიანი დანამატი:',text:`${addon.name} +${money(addon.price)} / ერთ.`,bold:true});
  }
- if(line.note)rows.push({text:`შენიშვნა: ${line.note}`});
+ if(line.note)rows.push({label:'შენიშვნა:',text:line.note,bold:true});
  return rows;
 }
 
 function kitchenDetails(line:Ticket['lines'][number]):Row[]{
- const rows:Row[]=(line.addons||[]).map(addon=>({text:`ფასიანი დანამატი: ${addon.name}`}));
- if(line.note)rows.push({text:`შენიშვნა: ${line.note}`});
+ const rows:Row[]=(line.addons||[]).map(addon=>({label:'ფასიანი დანამატი:',text:addon.name,bold:true}));
+ if(line.note)rows.push({label:'შენიშვნა:',text:line.note,bold:true});
  return rows;
 }
 
