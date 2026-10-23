@@ -212,9 +212,9 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .routingtable input[type=checkbox]{width:18px;height:18px;accent-color:#163a32}.routingchanged td{background:#fff6e0}.routingactions{gap:8px}
 /* Occupied tables in clear red so they stand out from the wooden free tables */
 .plantable.occupied .planshape{fill:url(#orvio-wood);stroke:#b3261e;stroke-width:4}
-.plantable.occupied .planstatus{stroke:#d32f2f;stroke-width:7;fill:#e5393552}
+.plantable.occupied .planstatus{stroke:#d32f2f;stroke-width:7;fill:none}
 .plantable.occupied .chair .chairseat{fill:#b84a43;stroke:#8e2a24}.plantable.occupied .chair .chairback{fill:#8e2a24}
-.plantable.occupied .planamount{fill:#7f1d1d}
+.plantable.occupied .planamount{fill:#3a2612}
 .planlegend .occupied{background:#f3b1ac;border-color:#d32f2f}
 .tablecard.occupied{background:#fdecea;border-color:#e57373}.badge.occupied{color:#fff;background:#d32f2f}
 .tablelistitem.occupied{border-color:#d32f2f;background:#fdecea}.tablelistitem em{color:#b3261e}
