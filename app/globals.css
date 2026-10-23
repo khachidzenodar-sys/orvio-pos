@@ -205,3 +205,8 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .rowsprintlogo{display:block;max-width:55%;max-height:120px;margin:0 auto 8px;filter:grayscale(1)}
 .rowsprintmark{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px}.rowsprintmark img{height:18px;width:auto;filter:grayscale(1) brightness(.2)}
 .lineqty{color:var(--ink);font-weight:800}
+/* Dish → department routing matrix */
+.routing{margin-top:16px}.routingtable{overflow-x:auto;margin:10px 0}.routingtable table{width:100%;border-collapse:collapse;font-size:13px}
+.routingtable th,.routingtable td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:center}.routingtable th:first-child,.routingtable td:first-child{text-align:left}
+.routingtable thead th{position:sticky;top:0;background:#f3efe6;font-weight:600}.routingcategory th{background:#faf6ee;font-weight:700;text-align:left}
+.routingtable input[type=checkbox]{width:18px;height:18px;accent-color:#163a32}.routingchanged td{background:#fff6e0}.routingactions{gap:8px}

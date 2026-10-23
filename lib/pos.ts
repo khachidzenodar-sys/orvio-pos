@@ -402,6 +402,22 @@ export function applyAction(original: PosState, action: string, p: Record<string
                 s.products.push(value);
             break;
         }
+        // Bulk routing from the management screen: {assignments: {productId: departmentIds[]}}; every dish keeps at least one department.
+        case 'setProductDepartments': {
+            const assignments = p.assignments;
+            assert(assignments && typeof assignments === 'object' && !Array.isArray(assignments), 'განაწილება არასწორია');
+            const entries = Object.entries(assignments as Record<string, unknown>);
+            assert(entries.length, 'ცვლილება არ არის');
+            for (const [productId, ids] of entries) {
+                const product = s.products.find(x => x.id === productId);
+                assert(product, 'პროდუქტი ვერ მოიძებნა');
+                assert(Array.isArray(ids) && ids.every(x => typeof x === 'string' && s.departments.some(d => d.id === x && !d.archived)), 'განყოფილება ვერ მოიძებნა');
+                assert(ids.length, `${product.name}: აირჩიეთ ერთი განყოფილება მაინც`);
+                product.departmentIds = [...new Set(ids as string[])];
+            }
+            log(`განყოფილებების განაწილება: ${entries.length} კერძი`);
+            break;
+        }
         case 'setProductPhoto': {
             assert(manager, 'მენეჯერის კოდი აუცილებელია');
             const product = s.products.find(x => x.id === p.productId);
