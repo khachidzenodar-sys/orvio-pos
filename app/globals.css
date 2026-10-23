@@ -236,3 +236,4 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .switch{flex:0 0 auto;width:48px;height:28px;padding:0;border-radius:14px;border:0;background:#cfd6cf;position:relative}.switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:left .15s}
 .switch.on{background:#1f6e4f}.switch.on span{left:23px}
 .tablecard .tablebottom{justify-content:space-between}.tablecard .tablename{font-weight:700;font-size:15px;color:var(--ink)}
+.titlerow{display:flex;align-items:center;gap:16px}.titlerow button{padding:9px 16px}
