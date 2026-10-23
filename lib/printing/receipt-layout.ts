@@ -25,6 +25,11 @@ function kitchenDetails(line:Ticket['lines'][number]):Row[]{
  return rows;
 }
 
+// Special requests sent with this order, oldest first, without repeats.
+export function orderNotes(order:Order,state:PosState):string[]{
+ return [...new Set(state.tickets.filter(t=>t.orderId===order.id&&t.note).map(t=>t.note!))];
+}
+
 export function receiptRows(order:Order,state:PosState):Row[]{
  const totals=orderTotals(order);
  const rows:Row[]=[
@@ -34,6 +39,8 @@ export function receiptRows(order:Order,state:PosState):Row[]{
   {text:when(order.createdAt)},
   {text:`№ ${order.id.slice(0,8)}`},
   RULE,
+  ...orderNotes(order,state).flatMap(note=>[{text:`! ${note}`,bold:true}]),
+  ...(orderNotes(order,state).length?[RULE]:[]),
  ];
  for(const line of order.lines.filter(l=>l.quantity>l.voidQuantity)){
   const qty=line.quantity-line.voidQuantity;

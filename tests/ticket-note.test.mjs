@@ -75,3 +75,13 @@ test('stored tickets with and without a note pass demo validation; bad notes are
   const legacy = structuredClone(doc); for (const t of legacy.state.tickets) delete t.note;
   assert.doesNotThrow(() => store.parseDemoDocument(JSON.stringify(legacy)));
 });
+
+test('the customer receipt also shows the special requests at the top, once each', () => {
+  const s = order();
+  s.act('sendOrder', {orderId: s.orderId, note: 'ალერგია თხილზე'});
+  s.act('addItem', {orderId: s.orderId, productId: 'product-1', quantity: 1});
+  s.act('sendOrder', {orderId: s.orderId, note: 'ალერგია თხილზე'});
+  const rows = layout.receiptRows(s.state.orders[0], s.state).filter(r => 'text' in r).map(r => r.text);
+  assert.equal(rows.filter(t => t === '! ალერგია თხილზე').length, 1);
+  assert.ok(rows.indexOf('! ალერგია თხილზე') < rows.indexOf('ხაჭაპური'));
+});
