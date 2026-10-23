@@ -35,8 +35,9 @@ test('compressor honours EXIF orientation and never touches the DOM at import ti
     assert.ok(!topLevel.some(line => /document|window|Image\(/.test(line)), topLevel.join('\n'));
 });
 
-test('product grid column counts are unchanged by photos', () => {
-    const photoBlock = css.slice(css.indexOf('/* Product photos'));
+test('product grid column counts do not depend on photos', () => {
+    // The tile layout sets the columns for every menu; the photo rules themselves must not.
+    const photoBlock = css.slice(css.indexOf('/* Product photos'), css.indexOf('/* Product tiles'));
     assert.ok(!photoBlock.includes('grid-template-columns'));
 });
 
@@ -87,9 +88,11 @@ test('photo field: save errors show next to the PIN controls and a failed pick d
     assert.match(workspace, /if\(!d\)\{setError\(''\);throw Error\(lastError\.current\);\}/);
 });
 
-test('photo cards top-align only in grids that show photos and keep a landscape strip', () => {
+test('product tiles put a landscape photo on top and the name and price below', () => {
     const photoBlock = css.slice(css.indexOf('/* Product photos'));
-    assert.match(photoBlock, /\.productgrid:has\(\.hasphoto\) \.product\{display:flex;flex-direction:column;justify-content:flex-start/);
-    assert.match(photoBlock, /\.productphoto\{[^}]*aspect-ratio:4\/3;max-height:96px/);
+    const tiles = css.slice(css.indexOf('/* Product tiles'));
+    assert.match(tiles, /\.product\{display:flex;flex-direction:column;justify-content:flex-start/);
+    assert.match(tiles, /\.productphoto,\.productplaceholder\{[^}]*aspect-ratio:4\/3/);
+    assert.match(workspace, /<span className="productinfo"><h3>\{p\.name\}<\/h3><b>\{money\(p\.price\)\}<\/b><\/span>/);
     assert.match(photoBlock, /\.menuname\{display:flex;align-items:center/);
 });
