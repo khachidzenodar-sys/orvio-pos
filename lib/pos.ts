@@ -79,6 +79,8 @@ export type Order = {
     discountAmount?: number;
     receiptPrintCount?: number;
     payments: Payment[];
+    waiterId?: string;
+    waiterName?: string; // snapshot printed on the guest check
 };
 export type Ticket = {
     id: string;
@@ -116,7 +118,10 @@ export type PosState = {
     inventory: Inventory;
     dayCloses?: DayClose[]; // absent in old documents = empty history
     receipt?: {logo?: string}; // printed at the top of the guest check
+    staff?: Staff[]; // waiters; when any are active, opening a table needs a waiter code
 };
+export type Staff = {id: string; name: string; pin: string; archived?: boolean};
+export const activeStaff = (s: Pick<PosState, 'staff'>) => (s.staff ?? []).filter(x => !x.archived);
 const id = () => crypto.randomUUID();
 const seedOptions: Record<string, {name: string; quickNotes: string[]; addons: Addon[]}> = {
     'product-1': {name: 'ხაჭაპური', quickNotes: ['კარგად დაბრაწული', 'დაჭრის გარეშე'], addons: [{id: 'extra-cheese', name: 'დამატებითი ყველი', price: 200}]},
@@ -212,8 +217,12 @@ export function applyAction(original: PosState, action: string, p: Record<string
     switch (action) {
         case 'openOrder': {
             assert(s.tables.some(t => t.id === p.tableId && !t.archived), 'მაგიდა ვერ მოიძებნა');
-            if (!s.orders.some(o => o.tableId === p.tableId && o.status === 'open'))
-                s.orders.push({ id: id(), tableId: String(p.tableId), status: 'open', createdAt: now, lines: [], discountPercent: 0, payments: [] });
+            if (!s.orders.some(o => o.tableId === p.tableId && o.status === 'open')) {
+                const staff = activeStaff(s);
+                const waiter = staff.length ? staff.find(x => x.pin === p.waiterPin) : undefined;
+                assert(!staff.length || waiter, 'მიმტნის კოდი არასწორია');
+                s.orders.push({ id: id(), tableId: String(p.tableId), status: 'open', createdAt: now, lines: [], discountPercent: 0, payments: [], ...(waiter ? { waiterId: waiter.id, waiterName: waiter.name } : {}) });
+            }
             break;
         }
         case 'closeEmptyOrder': {
@@ -435,6 +444,27 @@ export function applyAction(original: PosState, action: string, p: Record<string
                 product.photo = p.photo;
                 log(`${product.name}: ფოტო ${replaced ? 'შეიცვალა' : 'დაემატა'}`);
             }
+            break;
+        }
+        case 'saveStaff': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const name = optionText(p.name, 'მიუთითეთ მიმტნის სახელი', 60);
+            assert(typeof p.code === 'string' && /^\d{4,8}$/.test(p.code), 'მიმტნის კოდი უნდა შეიცავდეს 4–8 ციფრს');
+            const staff = s.staff ?? (s.staff = []);
+            const existing = typeof p.id === 'string' ? staff.find(x => x.id === p.id && !x.archived) : undefined;
+            assert(typeof p.id !== 'string' || existing, 'მიმტანი ვერ მოიძებნა');
+            assert(!activeStaff(s).some(x => x.pin === p.code && x.id !== existing?.id), 'ეს კოდი სხვა მიმტანს უკვე აქვს');
+            if (existing) { existing.name = name; existing.pin = p.code; }
+            else staff.push({ id: id(), name, pin: p.code });
+            log(`მიმტანი: ${name}`);
+            break;
+        }
+        case 'archiveStaff': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const member = (s.staff ?? []).find(x => x.id === p.id && !x.archived);
+            assert(member, 'მიმტანი ვერ მოიძებნა');
+            member.archived = true;
+            log(`მიმტანი ამოღებულია: ${member.name}`);
             break;
         }
         case 'setReceiptLogo': {

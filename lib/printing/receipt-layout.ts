@@ -49,7 +49,7 @@ export function receiptRows(order:Order,state:PosState,printedAt=new Date()):Row
   {text:`ჩეკი № ${checkNumber(order,state)}${(order.receiptPrintCount||0)>1?' · ასლი':''}`,align:'center',bold:true},
   {text:`სავაჭრო დღე: ${tradingDay(opened)}`},
   {text:`დრო: გახსნა ${clock(opened)} · დაიბეჭდა ${clock(printedAt)}`},
-  {text:'შეიყვანა: მოლარე'},
+  {text:`შეიყვანა: ${order.waiterName??'მოლარე'}`},
   RULE,
   {text:'არაფისკალური ანგარიში',align:'center'},
   ...orderNotes(order,state).flatMap(note=>[{text:`! ${note}`,bold:true}]),
@@ -73,6 +73,7 @@ export function ticketRows(ticket:Ticket,state:PosState):Row[]{
   {text:`მაგიდა ${ticket.tableName}`,align:'center',size:'huge',bold:true},
   {text:`${ticket.type==='cancel'?'გაუქმების ჩეკი':'შეკვეთა'}${ticket.printCount>1?' · ასლი':''}`,align:'center',bold:true},
   {text:when(ticket.createdAt),align:'center'},
+  ...((w=>w?[{text:`მიმტანი: ${w}`,align:'center' as const}]:[])(state.orders.find(o=>o.id===ticket.orderId)?.waiterName)),
   RULE,
   ...(ticket.note?[{text:`! ${ticket.note}`,size:'large' as const,bold:true},RULE]:[]),
  ];

@@ -6,7 +6,7 @@ export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
 export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo',...INVENTORY_ACTIONS];
+const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo','saveStaff','archiveStaff',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
 const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';
@@ -37,13 +37,14 @@ function validState(v:unknown):v is PosState {
  return records(v.departments,identity) && records(v.zones,identity)
   && records(v.tables,r=>identity(r)&&typeof r.zoneId==='string'&&(r.layout===undefined||isValidTableLayout(r.layout)))
   && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean'&&quickNotes(r.quickNotes)&&addons(r.addons)&&(r.photo===undefined||isValidProductPhoto(r.photo)))
-  && records(v.orders,r=>typeof r.id==='string'&&typeof r.tableId==='string'&&['open','closed'].includes(String(r.status))&&date(r.createdAt)&&(r.closedAt===undefined||date(r.closedAt))&&(r.discountAmount===undefined||number(r.discountAmount))&&(r.receiptPrintCount===undefined||number(r.receiptPrintCount))&&typeof r.discountPercent==='number'&&Number.isFinite(r.discountPercent)
+  && records(v.orders,r=>typeof r.id==='string'&&typeof r.tableId==='string'&&['open','closed'].includes(String(r.status))&&date(r.createdAt)&&(r.closedAt===undefined||date(r.closedAt))&&(r.discountAmount===undefined||number(r.discountAmount))&&(r.receiptPrintCount===undefined||number(r.receiptPrintCount))&&(r.waiterId===undefined||typeof r.waiterId==='string')&&(r.waiterName===undefined||optionText(r.waiterName,60))&&typeof r.discountPercent==='number'&&Number.isFinite(r.discountPercent)
    && records(r.lines,l=>identity(l)&&typeof l.productId==='string'&&number(l.price)&&number(l.quantity)&&number(l.voidQuantity)&&number(l.sentQuantity)&&typeof l.note==='string'&&strings(l.departmentIds)&&lineOptions(l))
    && records(r.payments,p=>typeof p.id==='string'&&['cash','card','other'].includes(String(p.method))&&number(p.amount)&&date(p.createdAt)&&records(p.allocations,a=>typeof a.lineId==='string'&&number(a.amount))))
   && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&(t.note===undefined||(typeof t.note==='string'&&t.note.length<=200))&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
   && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string')
   && (v.inventory===undefined||isValidInventory(v.inventory,(v.products as {id:string}[]).map(p=>p.id)))
   && (v.dayCloses===undefined||isValidDayCloses(v.dayCloses))
+  && (v.staff===undefined||records(v.staff,r=>typeof r.id==='string'&&optionText(r.name,60)&&typeof r.pin==='string'&&/^\d{4,8}$/.test(r.pin)&&(r.archived===undefined||typeof r.archived==='boolean')))
   && (v.receipt===undefined||(isObject(v.receipt)&&Object.keys(v.receipt).every(k=>k==='logo')&&(v.receipt.logo===undefined||isValidProductPhoto(v.receipt.logo))));
 }
 // Throws corruptError for anything that is not a complete, valid document.
