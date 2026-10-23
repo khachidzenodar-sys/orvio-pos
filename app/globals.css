@@ -211,8 +211,7 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .routingtable thead th{position:sticky;top:0;background:#f3efe6;font-weight:600}.routingcategory th{background:#faf6ee;font-weight:700;text-align:left}
 .routingtable input[type=checkbox]{width:18px;height:18px;accent-color:#163a32}.routingchanged td{background:#fff6e0}.routingactions{gap:8px}
 /* Occupied tables in clear red so they stand out from the wooden free tables */
-.plantable.occupied .planshape{fill:url(#orvio-wood);stroke:#b3261e;stroke-width:4}
-.plantable.occupied .planstatus{stroke:#d32f2f;stroke-width:7;fill:none}
+.plantable.occupied .planstatus{stroke:#d32f2f;stroke-width:4;fill:none}
 .plantable.occupied .planamount{fill:#3a2612}
 .planlegend .occupied{background:#f3b1ac;border-color:#d32f2f}
 .tablecard.occupied{background:#fdecea;border-color:#e57373}.badge.occupied{color:#fff;background:#d32f2f}

@@ -2,7 +2,7 @@
 
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import type {PosState} from '@/lib/pos';
-import {STATUS_LABELS, type TableStatus} from '@/lib/floor-plan';
+import type {TableStatus} from '@/lib/floor-plan';
 import {FloorPlan} from './floor-plan';
 import {TableGrid} from './table-grid';
 import {TableListDialog} from './table-list-dialog';
@@ -65,9 +65,6 @@ export function TablesView({state, busy, onOpen, zone, onZone: setZone}: Props) 
                     <button className={mode === 'grid' ? 'selected' : ''} onClick={() => setMode('grid')}>ბადე</button>
                 </div>
             </div>
-        </div>
-        <div className="planlegend">
-            {(Object.keys(STATUS_LABELS) as TableStatus[]).map(status => <span key={status}><i className={status}/>{STATUS_LABELS[status]}</span>)}
         </div>
         {mode === 'plan'
             ? <FloorPlan state={state} zoneId={zone} busy={busy} onOpen={onOpen}/>
