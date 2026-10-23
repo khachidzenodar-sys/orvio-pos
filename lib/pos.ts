@@ -95,6 +95,8 @@ export type Ticket = {
         note: string;
         addons?: Addon[];
     }[];
+    // Free-text request for the whole send, e.g. an allergy or "serve together".
+    note?: string;
     printCount: number;
 };
 export type Audit = {
@@ -201,10 +203,10 @@ export function applyAction(original: PosState, action: string, p: Record<string
     const ticket = (o: Order, lines: {
         line: Line;
         quantity: number;
-    }[], type: 'order' | 'cancel') => { for (const d of s.departments) {
+    }[], type: 'order' | 'cancel', note?: string) => { for (const d of s.departments) {
         const matching = lines.filter(x => x.quantity > 0 && x.line.departmentIds.includes(d.id));
         if (matching.length)
-            s.tickets.push({ id: id(), orderId: o.id, tableId: o.tableId, tableName: s.tables.find(t => t.id === o.tableId)?.name || o.tableId, departmentId: d.id, type, createdAt: now, lines: matching.map(x => ({ lineId: x.line.id, name: x.line.name, quantity: x.quantity, note: x.line.note, ...(x.line.addons ? {addons: x.line.addons.map(addon => ({...addon}))} : {}) })), printCount: 0 });
+            s.tickets.push({ id: id(), orderId: o.id, tableId: o.tableId, tableName: s.tables.find(t => t.id === o.tableId)?.name || o.tableId, departmentId: d.id, type, createdAt: now, lines: matching.map(x => ({ lineId: x.line.id, name: x.line.name, quantity: x.quantity, note: x.line.note, ...(x.line.addons ? {addons: x.line.addons.map(addon => ({...addon}))} : {}) })), ...(note ? { note } : {}), printCount: 0 });
     } };
     switch (action) {
         case 'openOrder': {
@@ -251,7 +253,9 @@ export function applyAction(original: PosState, action: string, p: Record<string
         case 'sendOrder': {
             const o = getOrder();
             const lines = o.lines.map(line => ({ line, quantity: line.quantity - line.voidQuantity - line.sentQuantity }));
-            ticket(o, lines, 'order');
+            const note = typeof p.note === 'string' && p.note.trim() ? optionText(p.note, 'შენიშვნა ძალიან გრძელია (მაქს. 200 სიმბოლო)', 200) : undefined;
+            assert(p.note === undefined || typeof p.note === 'string', 'შენიშვნა არასწორია');
+            ticket(o, lines, 'order', note);
             consumeSale(s, o, lines.filter(x => x.quantity > 0), ctx);
             for (const x of lines)
                 x.line.sentQuantity += x.quantity;

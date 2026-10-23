@@ -190,3 +190,6 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .layoutsettings .floorplan{max-width:860px;margin:0}
 @media(max-width:900px){.settingslayout{grid-template-columns:1fr}.settingsnav{position:static;flex-direction:row;flex-wrap:wrap}.settingsnav button{flex:0 0 auto}}
 .tablesview .stats.compact{grid-template-columns:repeat(3,minmax(0,1fr))}
+/* Special request typed before sending to departments */
+.sendnote{display:flex;flex-direction:column;gap:6px;margin:0 0 10px;font-size:12px;color:var(--muted)}.sendnote textarea{resize:vertical;min-height:44px;padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+.ticketnote{margin:8px 0;padding:8px 10px;border-radius:8px;background:#fff1d6;border:1px solid #e6b85c;color:#5b3a06;font-weight:700;white-space:pre-wrap}.print-ticketnote{font-size:16px;margin:6px 0;border:2px solid #000;padding:4px}

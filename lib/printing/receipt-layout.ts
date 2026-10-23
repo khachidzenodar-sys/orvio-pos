@@ -54,6 +54,7 @@ export function ticketRows(ticket:Ticket,state:PosState):Row[]{
   {text:`${ticket.type==='cancel'?'გაუქმების ჩეკი':'შეკვეთა'}${ticket.printCount>1?' · ასლი':''}`,align:'center',bold:true},
   {text:when(ticket.createdAt),align:'center'},
   RULE,
+  ...(ticket.note?[{text:`! ${ticket.note}`,size:'large' as const,bold:true},RULE]:[]),
  ];
  for(const line of grouped(ticket.lines))rows.push({text:`${line.quantity} × ${line.name}`,size:'large',bold:true},...kitchenDetails(line),{gap:6});
  rows.push(RULE,{text:`#${ticket.id.slice(0,8)}`});
