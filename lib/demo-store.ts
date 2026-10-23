@@ -10,6 +10,9 @@ const managerActions:string[] = ['discount','voidItem','changePin','saveTable','
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
 const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';
+// Lists the pre-restore safety copies written since this index existed, oldest first.
+const COPIES_KEY = 'orvio.restore-copies';
+const COPY_PREFIX = 'orvio.before-restore.';
 const conflictError = 'დემო სხვა ფანჯარაში შეიცვალა. განაახლეთ და სცადეთ ხელახლა.';
 const isObject = (v:unknown):v is Record<string,unknown> => !!v && typeof v==='object' && !Array.isArray(v);
 const strings = (v:unknown):v is string[] => Array.isArray(v) && v.every(x=>typeof x==='string');
@@ -63,7 +66,9 @@ export type DemoStore = ReturnType<typeof createDemoStore>;
 
 // This PIN is a public demo workflow, not an access-control boundary. Real
 // accounts continue to verify their own hashed PIN in the protected API.
-export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(), storageMessage=storageError) {
+// keepCopies limits pre-restore safety copies; the browser keeps 1 because localStorage
+// (~5M chars) holds only about two full documents with photos. Desktop keeps every copy.
+export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(), storageMessage=storageError, keepCopies=Infinity) {
  // A rejected setItem leaves the previous value in place, so a full quota never corrupts the document.
  const save=async(key:string,raw:string,quotaMessage=quotaError)=>{
   try{await storage.setItem(key,raw);}
@@ -91,6 +96,12 @@ export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(
   }
   doc.failures=0;doc.blockedUntil=0;
  };
+ // Safety-copy index is best effort: losing it only disables recycling, never data.
+ const tracked=async():Promise<string[]>=>{
+  try{const v:unknown=JSON.parse(await storage.getItem(COPIES_KEY)??'[]');return Array.isArray(v)?v.filter((k):k is string=>typeof k==='string'&&k.startsWith(COPY_PREFIX)):[];}
+  catch{return [];}
+ };
+ const remember=async(keys:string[])=>{try{await storage.setItem(COPIES_KEY,JSON.stringify(keys));}catch{}};
  // Loaded lazily so the core store keeps a single runtime dependency (./pos).
  const codec=()=>import('./backup');
  return {
@@ -116,13 +127,35 @@ export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(
    const backup=readBackup(text,parseDemoDocument);
    const {doc,raw}=await load();
    await verifyPin(doc,pin);
+   const restored:DemoDocument={...backup.document,failures:0,blockedUntil:0,version:Math.max(doc.version,backup.document.version)+1};
+   const copies=await tracked();
    // Never overwrite an earlier safety copy, even within the same second.
-   const base=`orvio.before-restore.${backupStamp(new Date())}`;
+   const base=`${COPY_PREFIX}${backupStamp(new Date())}`;
    let key=base;
    for(let n=2;await exists(key);n++)key=`${base}-${n}`;
-   await save(key,raw);
-   const restored:DemoDocument={...backup.document,failures:0,blockedUntil:0,version:Math.max(doc.version,backup.document.version)+1};
-   await write(restored);return snapshot(restored);
+   try{await save(key,raw);}
+   catch(e){
+    if(!(e instanceof Error&&e.message===quotaError))throw e;
+    // Quota full. Restoring the same data again loses nothing, so no new copy is needed.
+    // Otherwise overwrite a tracked copy in place, oldest first: setItem is atomic, so the old
+    // copy survives until the new one is fully written, and if none fits nothing changes.
+    if(doc.pin===restored.pin&&JSON.stringify(doc.state)===JSON.stringify(restored.state))key='';
+    else{
+     let recycled='';
+     for(const old of copies){try{await save(old,raw);recycled=old;break;}catch{}}
+     if(!recycled)throw e;
+     key=recycled;
+    }
+   }
+   const kept=key?[...copies.filter(k=>k!==key),key]:copies;
+   if(key)await remember(kept);
+   await write(restored);
+   // Older copies are cleared only after the new copy and the restored document are stored.
+   if(key&&kept.length>keepCopies){
+    for(const old of kept.splice(0,kept.length-keepCopies)){try{await storage.setItem(old,'');}catch{}}
+    await remember(kept);
+   }
+   return snapshot(restored);
   })
  };
 }
@@ -131,5 +164,5 @@ export function createBrowserDemoStore(){
  let storage:Storage;
  try{storage=window.localStorage;}catch{throw new Error(storageError);}
  const lock:Lock=async work=>navigator.locks?await navigator.locks.request(DEMO_STORAGE_KEY,work):await work();
- return createDemoStore(storage,lock);
+ return createDemoStore(storage,lock,storageError,1);
 }
