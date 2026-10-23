@@ -217,3 +217,9 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .tablecard.occupied{background:#fdecea;border-color:#e57373}.badge.occupied{color:#fff;background:#d32f2f}
 .tablelistitem.occupied{border-color:#d32f2f;background:#fdecea}.tablelistitem em{color:#b3261e}
 .stats.compact .dot.amber{background:#d32f2f}
+/* Payment window: method buttons, amount and change */
+.paysummary{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.paymethods{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}.paymethods button{padding:12px 6px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:600}.paymethods button.selected{background:#163a32;color:#fff;border-color:#163a32}
+.changecalc{margin-top:10px;padding:12px;border-radius:12px;background:#f6f1e6;display:flex;flex-direction:column;gap:8px}
+.quickcash{display:flex;gap:6px;flex-wrap:wrap}.quickcash button{flex:1;padding:8px 6px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:12px}
+.changecalc .change b{font-size:22px;color:#1f6e4f}.changecalc .change.short b{color:#b3261e}
