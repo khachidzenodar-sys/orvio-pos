@@ -229,7 +229,7 @@ export function ProductPhotoField(props: {
 - შეკვეთის ბარათი: ფოტოიან `button.product`-ს ემატება კლასი `hasphoto` და პირველ ელემენტად `<img className="productphoto" src={p.photo} alt={p.name} width={400} height={300} loading="lazy" decoding="async" draggable={false}/>`. კატეგორია, `h3` და ფასი რჩება **ფოტოს ქვემოთ** და არასდროს ფარავს მას. ფოტოს გარეშე ბარათის markup უცვლელია.
 - მენიუს სია: სახელის უჯრაში `<b>`-მდე `{p.photo&&<img className="menuthumb" src={p.photo} alt={p.name} width={40} height={40} loading="lazy" decoding="async"/>}`.
 - `reload()` ანგარიშის რეჟიმში: `fetch('/api/pos' + (latest.current ? `?since=${latest.current.version}` : ''))`. თუ პასუხს აქვს `unchanged: true`, არაფერი ხდება (`accept`-ი არ გამოიძახება). userId-ის შეცვლის შემთხვევაში სერვერი ნებისმიერ შემთხვევაში სრულ პასუხს აბრუნებს, რადგან version სხვა ანგარიშისაა. დემოს/desktop-ის `reload` უცვლელია.
-- `<img>` ელემენტებზე `{/* eslint-disable-next-line @next/next/no-img-element */}`, რადგან data URL-ს `next/image` არ სჭირდება (ეს მხოლოდ გაფრთხილებაა, მაგრამ სუფთად ვტოვებთ).
+- `<img>` ელემენტებზე `{/* eslint-disable-line @next/next/no-img-element */}` (`pos-workspace.tsx`-ში თითო view ერთ სტრიქონზეა, ამიტომ `next-line` არ მუშაობს; `product-photo-field.tsx`-ში `next-line`), რადგან data URL-ს `next/image` არ სჭირდება (ეს მხოლოდ გაფრთხილებაა, მაგრამ სუფთად ვტოვებთ).
 
 **`components/backup-panel.tsx`**: შემოწმების შეჯამებაში, თუ `pending.photos !== undefined`, ჩანს `<div className="summaryrow"><span>ფოტოები</span><b>{pending.photos}</b></div>`.
 
@@ -240,7 +240,7 @@ export function ProductPhotoField(props: {
 .product.hasphoto{min-height:146px}
 .product.hasphoto h3{margin:8px 0 10px}
 @media(max-width:760px){.product .productphoto{height:72px}}
-.menuthumb{width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px}
+.menuthumb{float:left;width:40px;height:40px;object-fit:cover;border-radius:6px;margin:-4px 10px -4px 0}
 .photofield{…} .photoframe{width:160px;height:120px;border:1px dashed var(--line);border-radius:10px;display:grid;place-items:center;overflow:hidden}
 .photoframe img{width:100%;height:100%;object-fit:cover} .photoframe.dragover{border-color:var(--gold)}
 ```

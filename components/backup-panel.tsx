@@ -7,7 +7,7 @@ import type {BackupFiles} from '@/lib/ports/backup-files';
 import {when} from '@/lib/format';
 
 type Store = Pick<DemoStore, 'exportBackup' | 'inspectBackup' | 'restoreBackup'>;
-type Pending = {text: string; createdAt: string; orders: number; products: number; stockItems?: number};
+type Pending = {text: string; createdAt: string; orders: number; products: number; photos?: number; stockItems?: number};
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -63,6 +63,7 @@ export function BackupPanel({files, store, onRestored, onFailed}: {files: Backup
           <div className="summaryrow"><span>შექმნის თარიღი</span><b>{when(pending.createdAt)}</b></div>
           <div className="summaryrow"><span>შეკვეთები</span><b>{pending.orders}</b></div>
           <div className="summaryrow"><span>პროდუქტები</span><b>{pending.products}</b></div>
+          {pending.photos !== undefined && <div className="summaryrow"><span>ფოტოები</span><b>{pending.photos}</b></div>}
           <div className="summaryrow"><span>საწყობის პოზიციები</span><b>{pending.stockItems ?? 0}</b></div>
           <p className="error formerror">ამ კომპიუტერზე არსებული მონაცემები ჩანაცვლდება ფაილის მონაცემებით. მიმდინარე მონაცემების ასლი ავტომატურად შეინახება.</p>
           <label>მენეჯერის კოდი<input name="pin" type="password" inputMode="numeric" autoComplete="off" required minLength={4} maxLength={12}/></label>
