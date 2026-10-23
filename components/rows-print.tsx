@@ -5,6 +5,8 @@ export function RowsPrint({rows}:{rows:Row[]}){
  return <div className="rowsprint">{rows.map((row,i)=>{
   if('rule' in row)return <hr key={i}/>;
   if('gap' in row)return <div key={i} style={{height:row.gap}}/>;
+  // eslint-disable-next-line @next/next/no-img-element
+  if('image' in row)return <img key={i} className="rowsprintlogo" src={row.image} alt="ლოგო"/>;
   const classes=[row.align==='center'?'center':'',row.size==='large'?'large':row.size==='huge'?'huge':''].filter(Boolean).join(' ');
   if(row.right!==undefined)return <div key={i} className={`summaryrow ${classes}`.trim()} style={row.bold?{fontWeight:700}:undefined}><span>{row.text}</span><b>{row.right}</b></div>;
   return <div key={i} className={classes||undefined} style={{fontWeight:row.bold?700:undefined,textAlign:row.align==='right'?'right':undefined}}>{row.text}</div>;

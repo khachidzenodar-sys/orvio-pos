@@ -199,3 +199,7 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 .tablelistgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .tablelistitem{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border-radius:12px;border:2px solid #e2d6c1;background:#f6ecda}.tablelistitem b{font-size:20px}.tablelistitem small{color:var(--muted)}.tablelistitem em{font-style:normal;font-weight:700;font-size:12px;color:#7a4f0d}
 .tablelistitem.occupied{border-color:#d38b1f;background:#fdf1d8}.tablelistitem:hover{filter:brightness(.97)}
+/* Receipt logo settings and browser-printed logo */
+.receiptsettings{max-width:560px}.receiptsettings .flex{gap:8px;flex-wrap:wrap}.logopreview{display:grid;place-items:center;min-height:120px;margin:12px 0;padding:12px;border:1px dashed var(--line);border-radius:12px;background:#fff}.logopreview img{max-width:240px;max-height:150px;filter:grayscale(1)}
+.logosave{margin-top:12px;display:flex;flex-direction:column;gap:8px}.visuallyhidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rowsprintlogo{display:block;max-width:55%;max-height:120px;margin:0 auto 8px;filter:grayscale(1)}

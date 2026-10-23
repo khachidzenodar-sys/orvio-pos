@@ -16,7 +16,9 @@ const SIZES={normal:{px:24,bold:false},large:{px:34,bold:true},huge:{px:48,bold:
 const SAMPLE='ქართული ₾';
 
 type TextRow=Extract<Row,{text:string}>;
-type Op={kind:'text';font:string;text:string;x:number;y:number;align:CanvasTextAlign}|{kind:'rule';y:number};
+type Op={kind:'text';font:string;text:string;x:number;y:number;align:CanvasTextAlign}|{kind:'rule';y:number}|{kind:'image';image:CanvasImageSource;x:number;y:number;width:number;height:number};
+const LOGO_MAX={width:320,height:200};
+type Images=Map<string,{image:CanvasImageSource;width:number;height:number}>;
 
 const fontOf=(row:TextRow)=>{const size=SIZES[row.size||'normal'];return `${size.bold||row.bold?'bold ':''}${size.px}px ${FAMILY}`;};
 const lineHeight=(row:TextRow)=>Math.round(SIZES[row.size||'normal'].px*1.35);
@@ -45,10 +47,15 @@ function wrap(ctx:CanvasRenderingContext2D,text:string,max:number):string[]{
 }
 
 // First pass: positions only, so the canvas can be sized before drawing.
-function layout(ctx:CanvasRenderingContext2D,rows:Row[]):{ops:Op[];height:number}{
+function layout(ctx:CanvasRenderingContext2D,rows:Row[],images:Images=new Map()):{ops:Op[];height:number}{
  const ops:Op[]=[];let y=PADDING_TOP;
  for(const row of rows){
   if('gap' in row){y+=row.gap;continue;}
+  if('image' in row){
+   const img=images.get(row.image);if(!img)continue;
+   const scale=Math.min(1,LOGO_MAX.width/img.width,LOGO_MAX.height/img.height),width=Math.round(img.width*scale),height=Math.round(img.height*scale);
+   ops.push({kind:'image',image:img.image,x:Math.round((WIDTH-width)/2),y,width,height});y+=height+12;continue;
+  }
   if('rule' in row){y+=RULE_SPACE;ops.push({kind:'rule',y});y+=RULE_HEIGHT+RULE_SPACE;continue;}
   const font=fontOf(row),height=lineHeight(row);
   ctx.font=font;
@@ -72,18 +79,30 @@ async function loadFonts(rows:Row[]){
  await Promise.all(Array.from(fonts,font=>document.fonts.load(font,SAMPLE).catch(()=>[])));
 }
 
+// A logo that cannot be decoded is skipped rather than blocking the print.
+async function loadImages(rows:Row[]):Promise<Images>{
+ const images:Images=new Map();
+ for(const row of rows){
+  if(!('image' in row)||images.has(row.image))continue;
+  try{const img=new Image();img.src=row.image;await img.decode();if(img.naturalWidth&&img.naturalHeight)images.set(row.image,{image:img,width:img.naturalWidth,height:img.naturalHeight});}catch{/* skip */}
+ }
+ return images;
+}
+
 export async function renderRows(rows:Row[]):Promise<Bitmap>{
  await loadFonts(rows);
+ const images=await loadImages(rows);
  const canvas=document.createElement('canvas');
  canvas.width=WIDTH;canvas.height=1;
  const ctx=canvas.getContext('2d');
  if(!ctx)throw new Error('ჩეკის დახატვა ვერ მოხერხდა');
- const {ops,height}=layout(ctx,rows);
+ const {ops,height}=layout(ctx,rows,images);
  canvas.height=height; // resizing resets the context state
  ctx.fillStyle='#fff';ctx.fillRect(0,0,WIDTH,height);
  ctx.fillStyle='#000';ctx.textBaseline='middle';
  for(const op of ops){
   if(op.kind==='rule'){ctx.fillRect(MARGIN,op.y,CONTENT,RULE_HEIGHT);continue;}
+  if(op.kind==='image'){ctx.drawImage(op.image,op.x,op.y,op.width,op.height);ctx.fillStyle='#000';continue;}
   ctx.font=op.font;ctx.textAlign=op.align;ctx.fillText(op.text,op.x,op.y);
  }
  return toBitmap(ctx.getImageData(0,0,WIDTH,height).data,WIDTH,height);

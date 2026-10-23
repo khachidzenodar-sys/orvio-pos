@@ -56,11 +56,12 @@ test('the customer receipt carries the same content, in the same order, as the p
   const khachapuri = s.order.lines.find(l => l.productId === 'product-1');
   const qty = khachapuri.quantity - khachapuri.voidQuantity;
   assertInOrder(lines, [
-    'ასკილი',
-    'არაფისკალური ანგარიში',
     'მაგიდა 3',
-    format.when(s.order.createdAt),
-    `№ ${s.order.id.slice(0, 8)}`,
+    `ჩეკი № ${layout.checkNumber(s.order, s.state)}`,
+    'სავაჭრო დღე: ',
+    'დრო: გახსნა ',
+    'შეიყვანა: ',
+    'არაფისკალური ანგარიში',
     'ხაჭაპური',
     `${qty} × ${format.money(khachapuri.price)} ${format.money(khachapuri.price * qty)}`,
     'საბაზო ფასი: 18.00 ₾',
@@ -83,7 +84,7 @@ test('the customer receipt carries the same content, in the same order, as the p
   assert.ok(!lines.some(l => l.includes('ასლი')), 'the first print is not a copy');
 
   s.act('printReceipt', {orderId: s.orderId});
-  assert.ok(texts(layout.receiptRows(s.order, s.state)).includes('არაფისკალური ანგარიში · ასლი'));
+  assert.ok(texts(layout.receiptRows(s.order, s.state)).includes(`ჩეკი № ${layout.checkNumber(s.order, s.state)} · ასლი`));
 });
 
 test('fully voided lines are left off the receipt', () => {
@@ -134,27 +135,41 @@ test('the test page shows Georgian text, the lari sign and edge markers', () => 
 });
 
 // Labels the browser print page (.printarea in pos-workspace.tsx and the line details in product-options.tsx) renders.
-const PRINTED_RECEIPT_LABELS = [
-  'ასკილი', 'არაფისკალური ანგარიში', 'მაგიდა ', '№ ', 'საბაზო ფასი: ', 'ფასიანი დანამატი: ', ' / ერთ.', 'შენიშვნა: ',
-  'სულ', 'ფასდაკლება', 'ჯამი', 'გადახდილია', 'დარჩენილია', 'ნაღდი: ', 'ბარათი: ', 'მადლობა სტუმრობისთვის!', 'ORVIO · RESTAURANT POS',
-];
-// The thermal receipt writes "qty × price" per line instead of the page's table, so its header is intentionally absent.
-const TABLE_HEADERS = ['დასახელება', 'რაოდ.', 'ფასი', 'თანხა'];
 // Right-hand amounts must fit beside the label on one 80 mm line (the renderer wraps only the left text).
 const MAX_RIGHT_CHARS = 16;
 
-test('the receipt covers every label of the browser print page', () => {
-  const ui = fs.readFileSync(new URL('../components/pos-workspace.tsx', import.meta.url), 'utf8')
-    + fs.readFileSync(new URL('../components/product-options.tsx', import.meta.url), 'utf8')
-    + fs.readFileSync(new URL('../lib/format.ts', import.meta.url), 'utf8');
-  for (const label of [...PRINTED_RECEIPT_LABELS, ...TABLE_HEADERS]) assert.ok(ui.includes(label.trim().replace(/:$/, '')), `UI no longer renders "${label}"`);
-
-  const s = scenario();
-  const rows = layout.receiptRows(s.order, s.state);
-  const lines = texts(rows);
-  for (const label of PRINTED_RECEIPT_LABELS) assert.ok(lines.some(line => line.includes(label)), `receipt is missing "${label}"`);
-  for (const header of TABLE_HEADERS) assert.ok(!lines.includes(header));
+test('the browser print of the guest check uses the same rows as the thermal printer', () => {
+  const ui = fs.readFileSync(new URL('../components/pos-workspace.tsx', import.meta.url), 'utf8');
+  assert.match(ui, /doc\.kind==='receipt'\?\{rows:receiptRows\(doc\.order,doc\.state\)\}/);
+  const rows = layout.receiptRows(scenario().order, scenario().state);
   for (const row of rows.filter(r => 'right' in r)) assert.ok([...row.right].length <= MAX_RIGHT_CHARS, `"${row.right}" is too wide for the right column`);
+});
+
+test('receipt header follows the owner order: logo, table, check number, trading day, time, who', () => {
+  const s = scenario();
+  const logo = 'data:image/png;base64,iVBORw0KGgo=';
+  const state = {...s.state, receipt: {logo}};
+  const printedAt = new Date(2026, 9, 23, 16, 58);
+  const rows = layout.receiptRows(s.order, state, printedAt);
+  assert.deepEqual(rows[0], {image: logo});
+  const head = rows.slice(1, 6).map(r => r.text);
+  const opened = new Date(s.order.createdAt), pad = n => String(n).padStart(2, '0');
+  assert.deepEqual(head, [
+    'მაგიდა 3',
+    'ჩეკი № 1',
+    `სავაჭრო დღე: ${pad(opened.getDate())}/${pad(opened.getMonth() + 1)}/${String(opened.getFullYear()).slice(2)}`,
+    `დრო: გახსნა ${pad(opened.getHours())}:${pad(opened.getMinutes())} · დაიბეჭდა 16:58`,
+    'შეიყვანა: მოლარე',
+  ]);
+  assert.ok(!('image' in layout.receiptRows(s.order, s.state)[0]), 'no logo row without a logo');
+});
+
+test('check numbers follow the order in which bills were opened', () => {
+  const s = scenario();
+  s.act('openOrder', {tableId: 'table-5'});
+  const second = s.state.orders[1];
+  assert.equal(layout.checkNumber(s.state.orders[0], s.state), 1);
+  assert.equal(layout.checkNumber(second, s.state), 2);
 });
 
 test('the ticket copy marker appears only from the second print, like the UI', () => {

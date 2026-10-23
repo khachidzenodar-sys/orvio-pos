@@ -6,7 +6,7 @@ export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
 export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto',...INVENTORY_ACTIONS];
+const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
 const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';
@@ -43,7 +43,8 @@ function validState(v:unknown):v is PosState {
   && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&(t.note===undefined||(typeof t.note==='string'&&t.note.length<=200))&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
   && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string')
   && (v.inventory===undefined||isValidInventory(v.inventory,(v.products as {id:string}[]).map(p=>p.id)))
-  && (v.dayCloses===undefined||isValidDayCloses(v.dayCloses));
+  && (v.dayCloses===undefined||isValidDayCloses(v.dayCloses))
+  && (v.receipt===undefined||(isObject(v.receipt)&&Object.keys(v.receipt).every(k=>k==='logo')&&(v.receipt.logo===undefined||isValidProductPhoto(v.receipt.logo))));
 }
 // Throws corruptError for anything that is not a complete, valid document.
 export function parseDemoDocument(raw:string):DemoDocument {

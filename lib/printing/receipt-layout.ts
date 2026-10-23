@@ -5,7 +5,8 @@ import {money,when,grouped,methods} from '@/lib/format';
 export type Row =
  |{text:string;right?:string;align?:'left'|'center'|'right';size?:'normal'|'large'|'huge';bold?:boolean}
  |{rule:true}
- |{gap:number};
+ |{gap:number}
+ |{image:string};
 
 const RULE:Row={rule:true};
 
@@ -30,15 +31,27 @@ export function orderNotes(order:Order,state:PosState):string[]{
  return [...new Set(state.tickets.filter(t=>t.orderId===order.id&&t.note).map(t=>t.note!))];
 }
 
-export function receiptRows(order:Order,state:PosState):Row[]{
- const totals=orderTotals(order);
+const pad=(n:number)=>String(n).padStart(2,'0');
+const tradingDay=(d:Date)=>`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`;
+const clock=(d:Date)=>`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+// Sequential check number: orders are only ever appended, so the position is stable.
+export function checkNumber(order:Order,state:PosState):number{
+ return state.orders.findIndex(o=>o.id===order.id)+1;
+}
+
+// Header order requested by the owner: logo, table, check number, trading day, time, who entered it.
+export function receiptRows(order:Order,state:PosState,printedAt=new Date()):Row[]{
+ const totals=orderTotals(order),opened=new Date(order.createdAt);
  const rows:Row[]=[
-  {text:'ასკილი',align:'center',size:'large',bold:true},
-  {text:`არაფისკალური ანგარიში${(order.receiptPrintCount||0)>1?' · ასლი':''}`,align:'center'},
-  {text:`მაგიდა ${state.tables.find(t=>t.id===order.tableId)?.name??''}`,align:'center',bold:true},
-  {text:when(order.createdAt)},
-  {text:`№ ${order.id.slice(0,8)}`},
+  ...(state.receipt?.logo?[{image:state.receipt.logo}]:[]),
+  {text:`მაგიდა ${state.tables.find(t=>t.id===order.tableId)?.name??''}`,align:'center',size:'large',bold:true},
+  {text:`ჩეკი № ${checkNumber(order,state)}${(order.receiptPrintCount||0)>1?' · ასლი':''}`,align:'center',bold:true},
+  {text:`სავაჭრო დღე: ${tradingDay(opened)}`},
+  {text:`დრო: გახსნა ${clock(opened)} · დაიბეჭდა ${clock(printedAt)}`},
+  {text:'შეიყვანა: მოლარე'},
   RULE,
+  {text:'არაფისკალური ანგარიში',align:'center'},
   ...orderNotes(order,state).flatMap(note=>[{text:`! ${note}`,bold:true}]),
   ...(orderNotes(order,state).length?[RULE]:[]),
  ];

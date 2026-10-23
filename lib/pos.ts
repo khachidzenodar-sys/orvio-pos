@@ -115,6 +115,7 @@ export type PosState = {
     audit: Audit[];
     inventory: Inventory;
     dayCloses?: DayClose[]; // absent in old documents = empty history
+    receipt?: {logo?: string}; // printed at the top of the guest check
 };
 const id = () => crypto.randomUUID();
 const seedOptions: Record<string, {name: string; quickNotes: string[]; addons: Addon[]}> = {
@@ -417,6 +418,19 @@ export function applyAction(original: PosState, action: string, p: Record<string
                 const replaced = !!product.photo;
                 product.photo = p.photo;
                 log(`${product.name}: ფოტო ${replaced ? 'შეიცვალა' : 'დაემატა'}`);
+            }
+            break;
+        }
+        case 'setReceiptLogo': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            if (p.logo === null) {
+                assert(s.receipt?.logo, 'ლოგო არ არის დამატებული');
+                delete s.receipt!.logo;
+                log('ჩეკის ლოგო წაიშალა');
+            } else {
+                assert(isValidProductPhoto(p.logo), PHOTO_MESSAGES.invalid);
+                s.receipt = {...s.receipt, logo: p.logo};
+                log('ჩეკის ლოგო განახლდა');
             }
             break;
         }
