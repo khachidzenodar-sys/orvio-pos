@@ -3,7 +3,7 @@
 import type {PosState} from '@/lib/pos';
 import {orderTotals} from '@/lib/pos';
 import {money} from '@/lib/format';
-import {STATUS_LABELS, tableStatus, zoneLayouts} from '@/lib/floor-plan';
+import {tableStatus, zoneLayouts} from '@/lib/floor-plan';
 import {PlanTable, TableDefs, tableFootprint} from './plan-table';
 
 // Tables in tidy rows, each drawn like the floor plan. All cards share one scale so bigger tables look bigger.
@@ -19,7 +19,7 @@ export function TableGrid({state, zoneId, busy, onOpen}: {state: PosState; zoneI
                 <TableDefs/>
                 <PlanTable layout={layout} name={table.name} status={status} amount={due}/>
             </svg>
-            <div className="tablebottom"><span className={`badge ${status}`}>{STATUS_LABELS[status]}</span><b>{due ?? 'ახალი შეკვეთა'}</b></div>
+            <div className="tablebottom">{due && <b>{due}</b>}</div>
         </button>;
     })}</div>;
 }

@@ -50,10 +50,8 @@ export function PlanTable({layout, name, status, amount, selected, onOpen, onPoi
         event.preventDefault();
         onOpen?.();
     };
-    // Small or narrow tables drop the seat line under an amount; long text is squeezed to stay inside the table.
-    const lines = !amount ? [{text: name, y: -12, cls: 'planname', size: 26}, {text: `${layout.seats} ადგ.`, y: 18, cls: 'planmeta', size: 18}]
-        : Math.min(w, h) < 100 ? [{text: name, y: -10, cls: 'planname', size: 26}, {text: amount, y: 18, cls: 'planamount', size: 19}]
-            : [{text: name, y: -24, cls: 'planname', size: 26}, {text: `${layout.seats} ადგ.`, y: 2, cls: 'planmeta', size: 18}, {text: amount, y: 26, cls: 'planamount', size: 19}];
+    // The table shows only its name (long names are squeezed to fit); colour tells free from occupied.
+    const lines = [{text: name, y: 0, cls: 'planname', size: 28}];
     const room = (layout.rotation === 90 ? h : w) - 12;
     const fit = (text: string, size: number) => text.length * size * 0.56 > room ? room : undefined;
     const shape = (cls: string, inset = 0) => layout.shape === 'round'
