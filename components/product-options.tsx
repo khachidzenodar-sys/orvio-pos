@@ -82,16 +82,16 @@ export function CashLineDetails({line}: {line: Line}) {
   return <div className="line-options-details">
     {!!line.addons?.length && <>
       <small>საბაზო ფასი: {money(line.basePrice ?? line.price - line.addons.reduce((sum, addon) => sum + addon.price, 0))}</small>
-      {line.addons.map(addon => <small key={addon.id}>ფასიანი დანამატი: {addon.name} <b>+{money(addon.price)}</b> / ერთ.</small>)}
+      {line.addons.map(addon => <small key={addon.id}>ფასიანი დანამატი: <b>{addon.name} +{money(addon.price)}</b> / ერთ.</small>)}
     </>}
-    {line.note && <small className="free-line-note">შენიშვნა: {line.note}</small>}
+    {line.note && <small className="free-line-note">შენიშვნა: <b>{line.note}</b></small>}
   </div>;
 }
 
 /** Deliberately only names: preparation tickets never display prices. */
 export function KitchenLineDetails({line}: {line: Ticket['lines'][number]}) {
   return <div className="line-options-details kitchen-line-details">
-    {line.addons?.map((addon: Addon) => <small key={addon.id}>ფასიანი დანამატი: {addon.name}</small>)}
-    {line.note && <small className="free-line-note">შენიშვნა: {line.note}</small>}
+    {line.addons?.map((addon: Addon) => <small key={addon.id}>ფასიანი დანამატი: <b>{addon.name}</b></small>)}
+    {line.note && <small className="free-line-note">შენიშვნა: <b>{line.note}</b></small>}
   </div>;
 }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
 import { webcrypto } from 'node:crypto';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 // Real route/domain code with narrow storage/auth doubles. Supabase adapter
 // HTTP contract tests live in backend.test.mjs; hosted wiring needs deployment QA.
@@ -15,7 +16,7 @@ function evaluate(path, imports = {}) {
   }, module, module.exports, webcrypto);
   return module.exports;
 }
-const domain = evaluate('../lib/pos.ts');
+const domain = loadDomain(evaluate);
 function harness() {
   const rows = new Map();
   let currentUser = { userId: 'cashier-A' };

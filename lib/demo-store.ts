@@ -1,14 +1,18 @@
-import {applyAction, seedState, type PosState} from './pos';
+import {applyAction, demoSeedState, FEATURE_DEFAULTS, INVENTORY_ACTIONS, isQuotaError, isValidDayCloses, isValidInventory, isValidProductPhoto, isValidTableLayout, normalizeState, PHOTO_MESSAGES, type PosState} from './pos';
+import type {KeyValueStore} from './ports/storage';
 
 export const DEMO_STORAGE_KEY = 'orvio.demo.v1';
 export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
-type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
-type LocalStorage = Pick<Storage, 'getItem'|'setItem'>;
+export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment'];
+const managerActions:string[] = ['discount','voidItem','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo','saveStaff','archiveStaff','setFeature',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
+const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';
+// Lists the pre-restore safety copies written since this index existed, oldest first.
+const COPIES_KEY = 'orvio.restore-copies';
+const COPY_PREFIX = 'orvio.before-restore.';
 const conflictError = 'დემო სხვა ფანჯარაში შეიცვალა. განაახლეთ და სცადეთ ხელახლა.';
 const isObject = (v:unknown):v is Record<string,unknown> => !!v && typeof v==='object' && !Array.isArray(v);
 const strings = (v:unknown):v is string[] => Array.isArray(v) && v.every(x=>typeof x==='string');
@@ -31,62 +35,131 @@ const lineOptions = (r:Record<string,unknown>) => {
 function validState(v:unknown):v is PosState {
  if(!isObject(v))return false;
  return records(v.departments,identity) && records(v.zones,identity)
-  && records(v.tables,r=>identity(r)&&typeof r.zoneId==='string')
-  && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean'&&quickNotes(r.quickNotes)&&addons(r.addons))
-  && records(v.orders,r=>typeof r.id==='string'&&typeof r.tableId==='string'&&['open','closed'].includes(String(r.status))&&date(r.createdAt)&&(r.closedAt===undefined||date(r.closedAt))&&(r.discountAmount===undefined||number(r.discountAmount))&&(r.receiptPrintCount===undefined||number(r.receiptPrintCount))&&typeof r.discountPercent==='number'&&Number.isFinite(r.discountPercent)
+  && records(v.tables,r=>identity(r)&&typeof r.zoneId==='string'&&(r.layout===undefined||isValidTableLayout(r.layout)))
+  && records(v.products,r=>identity(r)&&typeof r.category==='string'&&number(r.price)&&strings(r.departmentIds)&&typeof r.active==='boolean'&&quickNotes(r.quickNotes)&&addons(r.addons)&&(r.photo===undefined||isValidProductPhoto(r.photo)))
+  && records(v.orders,r=>typeof r.id==='string'&&typeof r.tableId==='string'&&['open','closed'].includes(String(r.status))&&date(r.createdAt)&&(r.closedAt===undefined||date(r.closedAt))&&(r.discountAmount===undefined||number(r.discountAmount))&&(r.receiptPrintCount===undefined||number(r.receiptPrintCount))&&(r.waiterId===undefined||typeof r.waiterId==='string')&&(r.waiterName===undefined||optionText(r.waiterName,60))&&typeof r.discountPercent==='number'&&Number.isFinite(r.discountPercent)
    && records(r.lines,l=>identity(l)&&typeof l.productId==='string'&&number(l.price)&&number(l.quantity)&&number(l.voidQuantity)&&number(l.sentQuantity)&&typeof l.note==='string'&&strings(l.departmentIds)&&lineOptions(l))
    && records(r.payments,p=>typeof p.id==='string'&&['cash','card','other'].includes(String(p.method))&&number(p.amount)&&date(p.createdAt)&&records(p.allocations,a=>typeof a.lineId==='string'&&number(a.amount))))
-  && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
-  && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string');
+  && records(v.tickets,t=>typeof t.id==='string'&&typeof t.orderId==='string'&&typeof t.tableId==='string'&&typeof t.tableName==='string'&&typeof t.departmentId==='string'&&['order','cancel'].includes(String(t.type))&&date(t.createdAt)&&number(t.printCount)&&(t.note===undefined||(typeof t.note==='string'&&t.note.length<=200))&&records(t.lines,l=>typeof l.lineId==='string'&&typeof l.name==='string'&&number(l.quantity)&&typeof l.note==='string'&&addons(l.addons)))
+  && records(v.audit,a=>typeof a.id==='string'&&date(a.at)&&typeof a.action==='string'&&typeof a.detail==='string')
+  && (v.inventory===undefined||isValidInventory(v.inventory,(v.products as {id:string}[]).map(p=>p.id)))
+  && (v.dayCloses===undefined||isValidDayCloses(v.dayCloses))
+  && (v.staff===undefined||records(v.staff,r=>typeof r.id==='string'&&optionText(r.name,60)&&typeof r.pin==='string'&&/^\d{4,8}$/.test(r.pin)&&(r.archived===undefined||typeof r.archived==='boolean')))
+  && (v.features===undefined||(isObject(v.features)&&Object.entries(v.features).every(([k,x])=>k in FEATURE_DEFAULTS&&typeof x==='boolean')))
+  && (v.receipt===undefined||(isObject(v.receipt)&&Object.keys(v.receipt).every(k=>k==='logo')&&(v.receipt.logo===undefined||isValidProductPhoto(v.receipt.logo))));
+}
+// Throws corruptError for anything that is not a complete, valid document.
+export function parseDemoDocument(raw:string):DemoDocument {
+ try{
+  const d:unknown=JSON.parse(raw);
+  if(!isObject(d)||d.schema!==1||typeof d.userId!=='string'||!d.userId||!number(d.version)||d.configured!==true||typeof d.pin!=='string'||!/^\d{4,12}$/.test(d.pin)||!number(d.failures)||!number(d.blockedUntil)||!validState(d.state))throw new Error();
+  const doc=d as DemoDocument;
+  // Documents saved before inventory existed migrate to empty stock.
+  return {...doc,state:normalizeState(doc.state)};
+ }catch{throw new Error(corruptError);}
 }
 function fresh():DemoDocument {
- return {schema:1,userId:crypto.randomUUID(),version:0,configured:true,state:seedState(),pin:DEFAULT_DEMO_PIN,failures:0,blockedUntil:0};
+ return {schema:1,userId:crypto.randomUUID(),version:0,configured:true,state:demoSeedState(),pin:DEFAULT_DEMO_PIN,failures:0,blockedUntil:0};
 }
 function snapshot(doc:DemoDocument):DemoSnapshot {
  return structuredClone({userId:doc.userId,version:doc.version,configured:true,state:doc.state});
 }
 
+export type DemoStore = ReturnType<typeof createDemoStore>;
+
 // This PIN is a public demo workflow, not an access-control boundary. Real
 // accounts continue to verify their own hashed PIN in the protected API.
-export function createDemoStore(storage:LocalStorage, withLock:Lock=work=>work()) {
- const write=(doc:DemoDocument)=>{
-  try{storage.setItem(DEMO_STORAGE_KEY,JSON.stringify(doc));}
-  catch{throw new Error(storageError);}
+// keepCopies limits pre-restore safety copies; the browser keeps 1 because localStorage
+// (~5M chars) holds only about two full documents with photos. Desktop keeps every copy.
+export function createDemoStore(storage:KeyValueStore, withLock:Lock=work=>work(), storageMessage=storageError, keepCopies=Infinity) {
+ // A rejected setItem leaves the previous value in place, so a full quota never corrupts the document.
+ const save=async(key:string,raw:string,quotaMessage=quotaError)=>{
+  try{await storage.setItem(key,raw);}
+  catch(e){throw new Error(isQuotaError(e)?quotaMessage:storageMessage);}
  };
- const read=():DemoDocument=>{
+ const write=(doc:DemoDocument,quotaMessage?:string)=>save(DEMO_STORAGE_KEY,JSON.stringify(doc),quotaMessage);
+ const exists=async(key:string)=>{
+  try{return await storage.getItem(key)!==null;}
+  catch{throw new Error(storageMessage);}
+ };
+ const load=async():Promise<{doc:DemoDocument;raw:string}>=>{
   let raw:string|null;
-  try{raw=storage.getItem(DEMO_STORAGE_KEY);}catch{throw new Error(storageError);}
-  if(raw===null){const doc=fresh();write(doc);return doc;}
-  try{
-   const d:unknown=JSON.parse(raw);
-   if(!isObject(d)||d.schema!==1||typeof d.userId!=='string'||!d.userId||!number(d.version)||d.configured!==true||typeof d.pin!=='string'||!/^\d{4,12}$/.test(d.pin)||!number(d.failures)||!number(d.blockedUntil)||!validState(d.state))throw new Error();
-   return d as DemoDocument;
-  }catch{throw new Error(corruptError);}
+  try{raw=await storage.getItem(DEMO_STORAGE_KEY);}catch{throw new Error(storageMessage);}
+  if(raw===null){const doc=fresh();await write(doc);return {doc,raw:JSON.stringify(doc)};}
+  return {doc:parseDemoDocument(raw),raw};
  };
+ const read=async()=>(await load()).doc;
+ // Same PIN rules and lockout for every manager operation.
+ const verifyPin=async(doc:DemoDocument,pin:unknown)=>{
+  if(doc.blockedUntil>Date.now())throw new Error('კოდი დროებით დაბლოკილია. სცადეთ 5 წუთში.');
+  if(pin!==doc.pin){
+   doc.failures++;
+   if(doc.failures>=5){doc.blockedUntil=Date.now()+300000;doc.failures=0;}
+   doc.version++;await write(doc);throw new Error('მენეჯერის კოდი არასწორია');
+  }
+  doc.failures=0;doc.blockedUntil=0;
+ };
+ // Safety-copy index is best effort: losing it only disables recycling, never data.
+ const tracked=async():Promise<string[]>=>{
+  try{const v:unknown=JSON.parse(await storage.getItem(COPIES_KEY)??'[]');return Array.isArray(v)?v.filter((k):k is string=>typeof k==='string'&&k.startsWith(COPY_PREFIX)):[];}
+  catch{return [];}
+ };
+ const remember=async(keys:string[])=>{try{await storage.setItem(COPIES_KEY,JSON.stringify(keys));}catch{}};
+ // Loaded lazily so the core store keeps a single runtime dependency (./pos).
+ const codec=()=>import('./backup');
  return {
-  read:()=>withLock(async()=>snapshot(read())),
+  read:()=>withLock(async()=>snapshot(await read())),
   act:(action:string,payload:Record<string,unknown>,expected:Pick<DemoSnapshot,'userId'|'version'>)=>withLock(async()=>{
-   const doc=read();
+   const doc=await read();
    if(doc.userId!==expected.userId||doc.version!==expected.version)throw new Error(conflictError);
-   let manager=false;
-   if(managerActions.includes(action)){
-    if(doc.blockedUntil>Date.now())throw new Error('კოდი დროებით დაბლოკილია. სცადეთ 5 წუთში.');
-    manager=(action==='changePin'?payload.oldPin:payload.pin)===doc.pin;
-    if(!manager){
-     doc.failures++;
-     if(doc.failures>=5){doc.blockedUntil=Date.now()+300000;doc.failures=0;}
-     doc.version++;write(doc);throw new Error('მენეჯერის კოდი არასწორია');
-    }
-    doc.failures=0;doc.blockedUntil=0;
-   }
+   const manager=managerActions.includes(action);
+   if(manager)await verifyPin(doc,action==='changePin'?payload.oldPin:payload.pin);
    if(action==='setupPin')throw new Error('დემოს კოდი უკვე დაყენებულია');
    if(action==='changePin'){
     if(typeof payload.newPin!=='string'||!/^\d{4,12}$/.test(payload.newPin))throw new Error('კოდი უნდა შეიცავდეს 4–12 ციფრს');
     doc.pin=payload.newPin;
    }else doc.state=applyAction(doc.state,action,payload,manager);
-   doc.version++;write(doc);return snapshot(doc);
+   doc.version++;await write(doc,action==='setProductPhoto'?PHOTO_MESSAGES.quota:quotaError);return snapshot(doc);
   }),
-  reset:()=>withLock(async()=>{const doc=fresh();write(doc);return snapshot(doc);})
+  reset:()=>withLock(async()=>{const doc=fresh();await write(doc);return snapshot(doc);}),
+  exportBackup:()=>withLock(async()=>(await codec()).createBackup(await read(),new Date())),
+  inspectBackup:async(text:string)=>{const {createdAt,summary,stockItems}=(await codec()).readBackup(text,parseDemoDocument);return {createdAt,summary,stockItems};},
+  // Replaces all local data, so it keeps a copy of the current document first.
+  restoreBackup:(text:string,pin:string)=>withLock(async()=>{
+   const {readBackup,backupStamp}=await codec();
+   const backup=readBackup(text,parseDemoDocument);
+   const {doc,raw}=await load();
+   await verifyPin(doc,pin);
+   const restored:DemoDocument={...backup.document,failures:0,blockedUntil:0,version:Math.max(doc.version,backup.document.version)+1};
+   const copies=await tracked();
+   // Never overwrite an earlier safety copy, even within the same second.
+   const base=`${COPY_PREFIX}${backupStamp(new Date())}`;
+   let key=base;
+   for(let n=2;await exists(key);n++)key=`${base}-${n}`;
+   try{await save(key,raw);}
+   catch(e){
+    if(!(e instanceof Error&&e.message===quotaError))throw e;
+    // Quota full. Restoring the same data again loses nothing, so no new copy is needed.
+    // Otherwise overwrite a tracked copy in place, oldest first: setItem is atomic, so the old
+    // copy survives until the new one is fully written, and if none fits nothing changes.
+    if(doc.pin===restored.pin&&JSON.stringify(doc.state)===JSON.stringify(restored.state))key='';
+    else{
+     let recycled='';
+     for(const old of copies){try{await save(old,raw);recycled=old;break;}catch{}}
+     if(!recycled)throw e;
+     key=recycled;
+    }
+   }
+   const kept=key?[...copies.filter(k=>k!==key),key]:copies;
+   if(key)await remember(kept);
+   await write(restored);
+   // Older copies are cleared only after the new copy and the restored document are stored.
+   if(key&&kept.length>keepCopies){
+    for(const old of kept.splice(0,kept.length-keepCopies)){try{await storage.setItem(old,'');}catch{}}
+    await remember(kept);
+   }
+   return snapshot(restored);
+  })
  };
 }
 
@@ -94,5 +167,5 @@ export function createBrowserDemoStore(){
  let storage:Storage;
  try{storage=window.localStorage;}catch{throw new Error(storageError);}
  const lock:Lock=async work=>navigator.locks?await navigator.locks.request(DEMO_STORAGE_KEY,work):await work();
- return createDemoStore(storage,lock);
+ return createDemoStore(storage,lock,storageError,1);
 }

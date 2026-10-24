@@ -5,6 +5,7 @@ import {createRequire} from 'node:module';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import ts from 'typescript';
+import {loadDomain} from './helpers/load-domain.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -24,7 +25,7 @@ function evaluate(path, imports = {}) {
   return module.exports;
 }
 
-const domain = evaluate('../lib/pos.ts');
+const domain = loadDomain(evaluate);
 const {CashLineDetails, KitchenLineDetails} = evaluate('../components/product-options.tsx', {
   '@/lib/pos': domain,
 });
@@ -43,9 +44,9 @@ const line = {
 test('cash details disclose the base and each paid add-on per unit, followed by the free note', () => {
   const html = render(CashLineDetails, line);
   assert.ok(html.includes('საბაზო ფასი: 18.00 ₾'));
-  assert.ok(html.includes('ფასიანი დანამატი: დამატებითი ყველი <b>+2.00 ₾</b> / ერთ.'));
-  assert.ok(html.includes('ფასიანი დანამატი: დამატებითი სოუსი <b>+1.50 ₾</b> / ერთ.'));
-  assert.ok(html.includes('შენიშვნა: ხახვის გარეშე; სოუსი ცალკე'));
+  assert.ok(html.includes('ფასიანი დანამატი: <b>დამატებითი ყველი +2.00 ₾</b> / ერთ.'));
+  assert.ok(html.includes('ფასიანი დანამატი: <b>დამატებითი სოუსი +1.50 ₾</b> / ერთ.'));
+  assert.ok(html.includes('შენიშვნა: <b>ხახვის გარეშე; სოუსი ცალკე</b>'));
   assert.doesNotMatch(html, /54\.00|6\.00|4\.50/, 'the detail prices must not be multiplied by quantity');
 
   const {basePrice: _base, ...withoutBaseSnapshot} = line;
@@ -55,9 +56,9 @@ test('cash details disclose the base and each paid add-on per unit, followed by 
 
 test('kitchen details keep preparation names and the note while omitting all fixture prices', () => {
   const html = render(KitchenLineDetails, line);
-  assert.ok(html.includes('ფასიანი დანამატი: დამატებითი ყველი'));
-  assert.ok(html.includes('ფასიანი დანამატი: დამატებითი სოუსი'));
-  assert.ok(html.includes('შენიშვნა: ხახვის გარეშე; სოუსი ცალკე'));
+  assert.ok(html.includes('ფასიანი დანამატი: <b>დამატებითი ყველი</b>'));
+  assert.ok(html.includes('ფასიანი დანამატი: <b>დამატებითი სოუსი</b>'));
+  assert.ok(html.includes('შენიშვნა: <b>ხახვის გარეშე; სოუსი ცალკე</b>'));
   assert.doesNotMatch(html, /₾|18\.00|21\.50|2\.00|1\.50|1800|2150|200|150/);
   assert.doesNotMatch(html, /საბაზო ფასი|\/ ერთ\./);
 });
@@ -80,7 +81,7 @@ test('legacy plain order and ticket lines render without optional add-on or base
   const {addons: _addons, basePrice: _base, ...legacy} = line;
   for (const Component of [CashLineDetails, KitchenLineDetails]) {
     const html = render(Component, legacy);
-    assert.ok(html.includes('შენიშვნა: ხახვის გარეშე; სოუსი ცალკე'));
+    assert.ok(html.includes('შენიშვნა: <b>ხახვის გარეშე; სოუსი ცალკე</b>'));
     assert.doesNotMatch(html, /ფასიანი დანამატი|საბაზო ფასი|NaN|undefined|₾/);
     assert.doesNotThrow(() => render(Component, {...legacy, note: ''}));
   }

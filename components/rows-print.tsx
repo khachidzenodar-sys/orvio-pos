@@ -1,0 +1,16 @@
+import type {Row} from '@/lib/printing/receipt-layout';
+
+// Browser-print fallback: shows the same rows the thermal printer would print.
+export function RowsPrint({rows}:{rows:Row[]}){
+ return <div className="rowsprint">{rows.map((row,i)=>{
+  if('rule' in row)return <hr key={i}/>;
+  if('gap' in row)return <div key={i} style={{height:row.gap}}/>;
+  /* eslint-disable @next/next/no-img-element */
+  if('image' in row)return row.caption!==undefined?<div key={i} className="rowsprintmark"><img src={row.image} alt=""/>{row.caption}</div>:<img key={i} className="rowsprintlogo" src={row.image} alt="ლოგო"/>;
+  /* eslint-enable @next/next/no-img-element */
+  const classes=[row.align==='center'?'center':'',row.size==='large'?'large':row.size==='huge'?'huge':''].filter(Boolean).join(' ');
+  if(row.right!==undefined)return <div key={i} className={`summaryrow ${classes}`.trim()} style={row.bold?{fontWeight:700}:undefined}><span>{row.lead!==undefined&&<b>{row.lead} </b>}{row.text}</span><b>{row.right}</b></div>;
+  if(row.label!==undefined)return <div key={i} className={classes||undefined}>{row.label} <b>{row.text}</b></div>;
+  return <div key={i} className={classes||undefined} style={{fontWeight:row.bold?700:undefined,textAlign:row.align==='right'?'right':undefined}}>{row.text}</div>;
+ })}</div>;
+}

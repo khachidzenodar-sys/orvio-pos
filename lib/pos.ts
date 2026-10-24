@@ -1,11 +1,29 @@
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {applyInventoryAction, consumeSale, emptyInventory, isValidInventory, seedInventory, INVENTORY_ACTIONS, type Inventory, type InventoryAction} from './inventory.ts';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {lineBalances, orderTotals, proportion} from './order-totals.ts';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {closeDay, isValidDayCloses} from './day-report.ts';
+import type {DayClose} from './day-report';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {applyFloorPlan, isValidTableLayout} from './floor-plan.ts';
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
+import {isQuotaError, isValidProductPhoto, photoLimitError, PHOTO_MESSAGES} from './product-photo.ts';
+export {isQuotaError, isValidProductPhoto, PHOTO_MESSAGES};
+export {emptyInventory, isValidInventory, INVENTORY_ACTIONS, lineBalances, orderTotals, isValidDayCloses, isValidTableLayout};
+export type {Inventory};
 export type Department = {
     archived?: boolean;
     id: string;
     name: string;
 };
 export type Zone = Department;
+export type TableShape = 'round' | 'square' | 'rectangle';
+// Center of the table in plan units (0..1000 × 0..625), chairs excluded from x/y.
+export type TableLayout = {seats: number; shape: TableShape; x: number; y: number; rotation: 0 | 90};
 export type Table = Department & {
     zoneId: string;
+    layout?: TableLayout;
 };
 // Prices throughout the POS are integer tetri, including each add-on snapshot.
 export type Addon = {
@@ -22,7 +40,11 @@ export type Product = {
     active: boolean;
     quickNotes?: string[];
     addons?: Addon[];
+    // data:image/(jpeg|png|webp);base64,… ≤ PHOTO_MAX_CHARS. Absent when there is no photo; never null or ''.
+    photo?: string;
 };
+// Photos change only through this manager action, never through saveProduct.
+export const PHOTO_ACTION = 'setProductPhoto';
 export type Line = {
     id: string;
     productId: string;
@@ -57,6 +79,8 @@ export type Order = {
     discountAmount?: number;
     receiptPrintCount?: number;
     payments: Payment[];
+    waiterId?: string;
+    waiterName?: string; // snapshot printed on the guest check
 };
 export type Ticket = {
     id: string;
@@ -73,6 +97,8 @@ export type Ticket = {
         note: string;
         addons?: Addon[];
     }[];
+    // Free-text request for the whole send, e.g. an allergy or "serve together".
+    note?: string;
     printCount: number;
 };
 export type Audit = {
@@ -89,7 +115,17 @@ export type PosState = {
     orders: Order[];
     tickets: Ticket[];
     audit: Audit[];
+    inventory: Inventory;
+    dayCloses?: DayClose[]; // absent in old documents = empty history
+    receipt?: {logo?: string}; // printed at the top of the guest check
+    staff?: Staff[]; // waiters; when any are active, opening a table needs a waiter code
+    features?: Partial<Features>; // on/off switches from მართვა → ფუნქციები; missing keys use FEATURE_DEFAULTS
 };
+export type Features = {sendDelay: boolean; waiterCode: boolean; ticketNote: boolean; productPhotos: boolean; changeCalculator: boolean};
+export const FEATURE_DEFAULTS: Features = {sendDelay: true, waiterCode: true, ticketNote: true, productPhotos: true, changeCalculator: true};
+export const features = (s: Pick<PosState, 'features'>): Features => ({...FEATURE_DEFAULTS, ...s.features});
+export type Staff = {id: string; name: string; pin: string; archived?: boolean};
+export const activeStaff = (s: Pick<PosState, 'staff'>) => (s.staff ?? []).filter(x => !x.archived);
 const id = () => crypto.randomUUID();
 const seedOptions: Record<string, {name: string; quickNotes: string[]; addons: Addon[]}> = {
     'product-1': {name: 'ხაჭაპური', quickNotes: ['კარგად დაბრაწული', 'დაჭრის გარეშე'], addons: [{id: 'extra-cheese', name: 'დამატებითი ყველი', price: 200}]},
@@ -113,11 +149,26 @@ export function getProductOptions(product: Product): {quickNotes: string[]; addo
         addons: (product.addons ?? defaults?.addons ?? []).map(addon => ({...addon})),
     };
 }
-export function seedState(): PosState { return { departments: [{ id: 'kitchen', name: 'სამზარეულო' }, { id: 'bar', name: 'ბარი' }, { id: 'pastry', name: 'საკონდიტრო' }], zones: [{ id: 'hall', name: 'დარბაზი' }, { id: 'terrace', name: 'ტერასა' }], tables: Array.from({ length: 12 }, (_, i) => ({ id: `table-${i + 1}`, name: `${i + 1}`, zoneId: i < 8 ? 'hall' : 'terrace' })), products: [['ხაჭაპური', 'კერძები', 1800, 'kitchen'], ['ცეზარი ქათმით', 'სალათები', 2400, 'kitchen'], ['პასტა ალფრედო', 'კერძები', 2600, 'kitchen'], ['კარტოფილი ფრი', 'გარნირები', 900, 'kitchen'], ['ამერიკანო', 'ყავა', 600, 'bar'], ['კაპუჩინო', 'ყავა', 800, 'bar'], ['ასკილის ლიმონათი', 'სასმელები', 1000, 'bar'], ['წყალი', 'სასმელები', 400, 'bar'], ['ჩიზქეიქი', 'დესერტები', 1200, 'pastry'], ['კრუასანი', 'დესერტები', 700, 'pastry']].map((p, i) => ({ id: `product-${i + 1}`, name: String(p[0]), category: String(p[1]), price: Number(p[2]), departmentIds: [String(p[3])], active: true })), orders: [], tickets: [], audit: [] }; }
-export function orderTotals(order: Order) { const subtotal = order.lines.reduce((a, l) => a + l.price * (l.quantity - l.voidQuantity), 0); const discount = order.discountAmount ?? Math.round(subtotal * order.discountPercent / 100); const total = subtotal - discount; const paid = order.payments.reduce((a, p) => a + p.amount, 0); return { subtotal, discount, total, paid, due: total - paid }; }
-function proportion(a: number, b: number, den: number) { if (!den)
-    return 0; const n = BigInt(a) * BigInt(b), d = BigInt(den); return Number((n * BigInt(2) + d) / (BigInt(2) * d)); }
-export function lineBalances(order: Order) { const { subtotal, total } = orderTotals(order); let cumulative = 0, allocated = 0; return order.lines.map(l => { cumulative += l.price * (l.quantity - l.voidQuantity); const until = subtotal ? proportion(cumulative, total, subtotal) : 0; const lineTotal = until - allocated; allocated = until; const paid = order.payments.reduce((a, p) => a + p.allocations.filter(x => x.lineId === l.id).reduce((s, x) => s + x.amount, 0), 0); return { lineId: l.id, total: lineTotal, paid, due: lineTotal - paid }; }); }
+export function seedState(): PosState { return { departments: [{ id: 'kitchen', name: 'სამზარეულო' }, { id: 'bar', name: 'ბარი' }, { id: 'pastry', name: 'საკონდიტრო' }], zones: [{ id: 'hall', name: 'დარბაზი' }, { id: 'terrace', name: 'ტერასა' }], tables: Array.from({ length: 12 }, (_, i) => ({ id: `table-${i + 1}`, name: `${i + 1}`, zoneId: i < 8 ? 'hall' : 'terrace' })), products: [['ხაჭაპური', 'კერძები', 1800, 'kitchen'], ['ცეზარი ქათმით', 'სალათები', 2400, 'kitchen'], ['პასტა ალფრედო', 'კერძები', 2600, 'kitchen'], ['კარტოფილი ფრი', 'გარნირები', 900, 'kitchen'], ['ამერიკანო', 'ყავა', 600, 'bar'], ['კაპუჩინო', 'ყავა', 800, 'bar'], ['ასკილის ლიმონათი', 'სასმელები', 1000, 'bar'], ['წყალი', 'სასმელები', 400, 'bar'], ['ჩიზქეიქი', 'დესერტები', 1200, 'pastry'], ['კრუასანი', 'დესერტები', 700, 'pastry']].map((p, i) => ({ id: `product-${i + 1}`, name: String(p[0]), category: String(p[1]), price: Number(p[2]), departmentIds: [String(p[3])], active: true })), orders: [], tickets: [], audit: [], inventory: emptyInventory() }; }
+// Documents saved before inventory existed load with an empty stock.
+export function normalizeState(state: Omit<PosState, 'inventory'> & {inventory?: Inventory}): PosState {
+    return state.inventory ? state as PosState : {...state, inventory: emptyInventory()};
+}
+// Fresh demo and desktop documents only; real accounts start with empty stock.
+// Varied shapes and seats so the demo floor plan looks like a real room.
+const DEMO_LAYOUTS: [number, TableShape, number, number][] = [
+    [2, 'round', 110, 100], [2, 'round', 290, 100], [4, 'square', 110, 320], [4, 'square', 290, 320],
+    [4, 'square', 110, 530], [4, 'square', 290, 530], [6, 'rectangle', 620, 140], [8, 'rectangle', 680, 420],
+    [4, 'round', 150, 150], [4, 'round', 400, 150], [2, 'square', 650, 150], [6, 'rectangle', 500, 430],
+];
+export function demoSeedState(now = new Date().toISOString()): PosState {
+    const base = seedState();
+    const tables = base.tables.map((t, i) => {
+        const [seats, shape, x, y] = DEMO_LAYOUTS[i];
+        return {...t, layout: {seats, shape, x, y, rotation: 0 as const}};
+    });
+    return {...base, tables, inventory: seedInventory({now, newId: id})};
+}
 function assert(value: unknown, message: string): asserts value { if (!value)
     throw new Error(message); }
 function text(value: unknown, label: string) { assert(typeof value === 'string' && value.trim().length > 0 && value.length <= 500, label); return value.trim(); }
@@ -154,23 +205,28 @@ function sameAddons(left: Addon[] = [], right: Addon[] = []) {
 }
 // Manager authorization is verified in the server route immediately before this pure transition.
 export function applyAction(original: PosState, action: string, p: Record<string, unknown>, manager = false, now = new Date().toISOString()): PosState {
-    const s = structuredClone(original);
+    const s = normalizeState(structuredClone(original));
+    const ctx = {now, newId: id};
     const log = (detail: string) => s.audit.push({ id: id(), at: now, action, detail });
     const getOrder = () => { const o = s.orders.find(o => o.id === p.orderId); assert(o, 'შეკვეთა ვერ მოიძებნა'); assert(o.status === 'open', 'ანგარიში უკვე დახურულია'); return o; };
     const editable = (o: Order) => assert(!o.payments.length, 'ნაწილობრივი გადახდის შემდეგ შეკვეთის შეცვლა შეუძლებელია');
     const ticket = (o: Order, lines: {
         line: Line;
         quantity: number;
-    }[], type: 'order' | 'cancel') => { for (const d of s.departments) {
+    }[], type: 'order' | 'cancel', note?: string) => { for (const d of s.departments) {
         const matching = lines.filter(x => x.quantity > 0 && x.line.departmentIds.includes(d.id));
         if (matching.length)
-            s.tickets.push({ id: id(), orderId: o.id, tableId: o.tableId, tableName: s.tables.find(t => t.id === o.tableId)?.name || o.tableId, departmentId: d.id, type, createdAt: now, lines: matching.map(x => ({ lineId: x.line.id, name: x.line.name, quantity: x.quantity, note: x.line.note, ...(x.line.addons ? {addons: x.line.addons.map(addon => ({...addon}))} : {}) })), printCount: 0 });
+            s.tickets.push({ id: id(), orderId: o.id, tableId: o.tableId, tableName: s.tables.find(t => t.id === o.tableId)?.name || o.tableId, departmentId: d.id, type, createdAt: now, lines: matching.map(x => ({ lineId: x.line.id, name: x.line.name, quantity: x.quantity, note: x.line.note, ...(x.line.addons ? {addons: x.line.addons.map(addon => ({...addon}))} : {}) })), ...(note ? { note } : {}), printCount: 0 });
     } };
     switch (action) {
         case 'openOrder': {
             assert(s.tables.some(t => t.id === p.tableId && !t.archived), 'მაგიდა ვერ მოიძებნა');
-            if (!s.orders.some(o => o.tableId === p.tableId && o.status === 'open'))
-                s.orders.push({ id: id(), tableId: String(p.tableId), status: 'open', createdAt: now, lines: [], discountPercent: 0, payments: [] });
+            if (!s.orders.some(o => o.tableId === p.tableId && o.status === 'open')) {
+                const staff = features(s).waiterCode ? activeStaff(s) : [];
+                const waiter = staff.length ? staff.find(x => x.pin === p.waiterPin) : undefined;
+                assert(!staff.length || waiter, 'მიმტნის კოდი არასწორია');
+                s.orders.push({ id: id(), tableId: String(p.tableId), status: 'open', createdAt: now, lines: [], discountPercent: 0, payments: [], ...(waiter ? { waiterId: waiter.id, waiterName: waiter.name } : {}) });
+            }
             break;
         }
         case 'closeEmptyOrder': {
@@ -211,7 +267,10 @@ export function applyAction(original: PosState, action: string, p: Record<string
         case 'sendOrder': {
             const o = getOrder();
             const lines = o.lines.map(line => ({ line, quantity: line.quantity - line.voidQuantity - line.sentQuantity }));
-            ticket(o, lines, 'order');
+            const note = typeof p.note === 'string' && p.note.trim() ? optionText(p.note, 'შენიშვნა ძალიან გრძელია (მაქს. 200 სიმბოლო)', 200) : undefined;
+            assert(p.note === undefined || typeof p.note === 'string', 'შენიშვნა არასწორია');
+            ticket(o, lines, 'order', note);
+            consumeSale(s, o, lines.filter(x => x.quantity > 0), ctx);
             for (const x of lines)
                 x.line.sentQuantity += x.quantity;
             break;
@@ -263,6 +322,35 @@ export function applyAction(original: PosState, action: string, p: Record<string
             assert(!s.orders.some(x => x.status === 'open' && x.tableId === p.tableId), 'მაგიდა დაკავებულია');
             o.tableId = String(p.tableId);
             break;
+        }
+        // Joins another table's open order into this one; that table becomes free. Sent items stay sent.
+        case 'mergeOrders': {
+            const o = getOrder();
+            editable(o);
+            const other = s.orders.find(x => x.id === p.sourceOrderId && x.status === 'open');
+            assert(other && other.id !== o.id, 'გასაერთიანებელი მაგიდა ვერ მოიძებნა');
+            assert(!other.payments.length, 'ნაწილობრივ გადახდილ მაგიდას ვერ გააერთიანებთ');
+            assert(!other.discountPercent && other.discountAmount === undefined, 'ჯერ მოხსენით ფასდაკლება გასაერთიანებელ მაგიდაზე');
+            o.lines.push(...other.lines);
+            other.lines = [];
+            other.status = 'closed';
+            other.closedAt = now;
+            // The joined table's ticket notes now belong to this bill's guest check.
+            for (const t of s.tickets) if (t.orderId === other.id) t.orderId = o.id;
+            const name = (tableId: string) => s.tables.find(t => t.id === tableId)?.name ?? tableId;
+            log(`${name(other.tableId)} → ${name(o.tableId)}`);
+            break;
+        }
+        // Records the cash and card parts together; the whole split fails if either part is invalid.
+        case 'splitPay': {
+            const o = getOrder();
+            const parts = (['cash', 'card'] as const).map(method => ({ method, amount: integer(p[method] ?? 0, 0) })).filter(x => x.amount > 0);
+            assert(parts.length, 'მიუთითეთ დადებითი თანხა');
+            assert(parts.reduce((sum, x) => sum + x.amount, 0) <= orderTotals(o).due, 'გადახდა აღემატება დარჩენილ თანხას');
+            let next: PosState = s;
+            for (const part of parts)
+                next = applyAction(next, 'pay', { orderId: o.id, method: part.method, amount: part.amount }, manager, now);
+            return next;
         }
         case 'pay': {
             const o = getOrder();
@@ -337,11 +425,88 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const previous = idx >= 0 ? getProductOptions(s.products[idx]) : {quickNotes: [], addons: []};
             const value: Product = { id: productId, name, category, price, departmentIds: [...new Set(p.departmentIds as string[])], active: p.active,
                 quickNotes: p.quickNotes === undefined ? previous.quickNotes : quickNoteConfig(p.quickNotes),
-                addons: p.addons === undefined ? previous.addons : addonConfig(p.addons) };
+                addons: p.addons === undefined ? previous.addons : addonConfig(p.addons),
+                ...(idx >= 0 && s.products[idx].photo ? {photo: s.products[idx].photo} : {}) };
             if (idx >= 0)
                 s.products[idx] = value;
             else
                 s.products.push(value);
+            break;
+        }
+        // Bulk routing from the management screen: {assignments: {productId: departmentIds[]}}; every dish keeps at least one department.
+        case 'setProductDepartments': {
+            const assignments = p.assignments;
+            assert(assignments && typeof assignments === 'object' && !Array.isArray(assignments), 'განაწილება არასწორია');
+            const entries = Object.entries(assignments as Record<string, unknown>);
+            assert(entries.length, 'ცვლილება არ არის');
+            for (const [productId, ids] of entries) {
+                const product = s.products.find(x => x.id === productId);
+                assert(product, 'პროდუქტი ვერ მოიძებნა');
+                assert(Array.isArray(ids) && ids.every(x => typeof x === 'string' && s.departments.some(d => d.id === x && !d.archived)), 'განყოფილება ვერ მოიძებნა');
+                assert(ids.length, `${product.name}: აირჩიეთ ერთი განყოფილება მაინც`);
+                product.departmentIds = [...new Set(ids as string[])];
+            }
+            log(`განყოფილებების განაწილება: ${entries.length} კერძი`);
+            break;
+        }
+        case 'setProductPhoto': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const product = s.products.find(x => x.id === p.productId);
+            assert(product, 'პროდუქტი ვერ მოიძებნა');
+            // The audit records what changed, never the data URL itself.
+            if (p.photo === null) {
+                assert(product.photo, 'პროდუქტს ფოტო არ აქვს');
+                delete product.photo;
+                log(`${product.name}: ფოტო წაიშალა`);
+            } else {
+                assert(isValidProductPhoto(p.photo), PHOTO_MESSAGES.invalid);
+                const limit = photoLimitError(s.products, product.id, p.photo);
+                assert(!limit, limit ?? '');
+                const replaced = !!product.photo;
+                product.photo = p.photo;
+                log(`${product.name}: ფოტო ${replaced ? 'შეიცვალა' : 'დაემატა'}`);
+            }
+            break;
+        }
+        case 'saveStaff': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const name = optionText(p.name, 'მიუთითეთ მიმტნის სახელი', 60);
+            assert(typeof p.code === 'string' && /^\d{4,8}$/.test(p.code), 'მიმტნის კოდი უნდა შეიცავდეს 4–8 ციფრს');
+            const staff = s.staff ?? (s.staff = []);
+            const existing = typeof p.id === 'string' ? staff.find(x => x.id === p.id && !x.archived) : undefined;
+            assert(typeof p.id !== 'string' || existing, 'მიმტანი ვერ მოიძებნა');
+            assert(!activeStaff(s).some(x => x.pin === p.code && x.id !== existing?.id), 'ეს კოდი სხვა მიმტანს უკვე აქვს');
+            if (existing) { existing.name = name; existing.pin = p.code; }
+            else staff.push({ id: id(), name, pin: p.code });
+            log(`მიმტანი: ${name}`);
+            break;
+        }
+        case 'archiveStaff': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const member = (s.staff ?? []).find(x => x.id === p.id && !x.archived);
+            assert(member, 'მიმტანი ვერ მოიძებნა');
+            member.archived = true;
+            log(`მიმტანი ამოღებულია: ${member.name}`);
+            break;
+        }
+        case 'setFeature': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            assert(typeof p.key === 'string' && p.key in FEATURE_DEFAULTS && typeof p.on === 'boolean', 'ფუნქცია ვერ მოიძებნა');
+            s.features = {...s.features, [p.key]: p.on};
+            log(`ფუნქცია ${p.key}: ${p.on ? 'ჩართულია' : 'გამორთულია'}`);
+            break;
+        }
+        case 'setReceiptLogo': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            if (p.logo === null) {
+                assert(s.receipt?.logo, 'ლოგო არ არის დამატებული');
+                delete s.receipt!.logo;
+                log('ჩეკის ლოგო წაიშალა');
+            } else {
+                assert(isValidProductPhoto(p.logo), PHOTO_MESSAGES.invalid);
+                s.receipt = {...s.receipt, logo: p.logo};
+                log('ჩეკის ლოგო განახლდა');
+            }
             break;
         }
         case 'saveTable':
@@ -361,6 +526,11 @@ export function applyAction(original: PosState, action: string, p: Record<string
             }
             const idx = target.findIndex(x => x.id === value.id);
             assert(idx < 0 || !target[idx].archived, 'ჩანაწერი ამოღებულია');
+            if (action === 'saveTable' && idx >= 0) {
+                const previous = target[idx] as Table;
+                if (previous.layout && previous.zoneId === value.zoneId)
+                    (value as Table).layout = previous.layout;
+            }
             if (idx >= 0)
                 target[idx] = value as Table;
             else
@@ -392,6 +562,28 @@ export function applyAction(original: PosState, action: string, p: Record<string
             const t = s.tickets.find(t => t.id === p.ticketId);
             assert(t, 'ჩეკი ვერ მოიძებნა');
             t.printCount++;
+            break;
+        }
+        case 'saveStockItem':
+        case 'archiveStockItem':
+        case 'saveRecipe':
+        case 'saveBatchRecipe':
+        case 'receiveStock':
+        case 'writeOff':
+        case 'stockCount':
+        case 'produce': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            log(applyInventoryAction(s, action as InventoryAction, p, ctx));
+            break;
+        }
+        case 'closeDay': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            log(closeDay(s, p, ctx));
+            break;
+        }
+        case 'saveFloorPlan': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            log(applyFloorPlan(s, p, ctx));
             break;
         }
         default: throw new Error('უცნობი მოქმედება');
