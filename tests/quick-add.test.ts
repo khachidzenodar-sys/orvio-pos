@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-ignore Node's strip-types runner requires explicit extensions.
+// @ts-expect-error Node's strip-types runner requires explicit extensions.
 import { applyAction, seedState, orderTotals } from '../lib/pos.ts';
 
 function fixture(routes = ['kitchen']) {
@@ -77,7 +77,7 @@ test('the same set of routes in a different order still groups into one line', (
     assert.equal(f.order.lines[0].quantity, 2);
 });
 
-// @ts-ignore Node's strip-types runner requires explicit extensions.
+// @ts-expect-error Node's strip-types runner requires explicit extensions.
 import { createSerialQueue } from '../lib/serial-queue.ts';
 
 test('rapid queued taps read the latest saved state and finish before a queued send', async () => {

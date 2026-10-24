@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-ignore Explicit extension is required by the Node strip-types test runner.
+// @ts-expect-error Explicit extension is required by the Node strip-types test runner.
 import {applyAction, seedState, orderTotals, lineBalances} from '../lib/pos.ts';
 
 function fixture(price=101,quantity=1,routes=['kitchen']) {

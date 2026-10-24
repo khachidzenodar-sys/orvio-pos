@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-ignore Node's strip-types runner requires explicit extensions.
+// @ts-expect-error Node's strip-types runner requires explicit extensions.
 import {applyAction, seedState, getProductOptions, orderTotals, lineBalances} from '../lib/pos.ts';
 
 const cheese = {id: 'cheese', name: 'დამატებითი ყველი', price: 200};

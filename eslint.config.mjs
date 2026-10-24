@@ -26,6 +26,14 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    files: ["tests/**/*.{ts,tsx,mjs}"],
+    rules: {
+      // The test harness deliberately creates CommonJS-shaped modules in an
+      // isolated evaluator in order to exercise the real source files.
+      "@next/next/no-assign-module-variable": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
