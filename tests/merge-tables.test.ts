@@ -39,3 +39,27 @@ test('merging refuses paid, discounted or missing tables', () => {
     const paid = applyAction(s, 'pay', {orderId: source.id, method: 'cash', amount: 100});
     assert.throws(() => applyAction(paid, 'mergeOrders', {orderId: target.id, sourceOrderId: source.id}), /გადახდილ/);
 });
+
+test('cancelling the whole bill voids every item, sends cancellations for sent ones and frees the table', () => {
+    let s = twoTables();
+    const o = open(s, 'table-2');
+    s = applyAction(s, 'addItem', {orderId: o.id, productId: 'product-1', quantity: 2});
+    assert.throws(() => applyAction(s, 'voidOrder', {orderId: o.id, reason: 'სტუმარი წავიდა'}), /მენეჯერის/);
+    assert.throws(() => applyAction(s, 'voidOrder', {orderId: o.id}, true), /მიზეზი/);
+    const before = s.tickets.length;
+    s = applyAction(s, 'voidOrder', {orderId: o.id, reason: 'სტუმარი წავიდა'}, true);
+    const closed = s.orders.find(x => x.id === o.id)!;
+    assert.equal(closed.status, 'closed');
+    assert.equal(open(s, 'table-2'), undefined);
+    assert.ok(closed.lines.every(l => l.voidQuantity === l.quantity && l.sentQuantity === 0));
+    const cancels = s.tickets.slice(before);
+    assert.deepEqual(cancels.map(t => [t.type, t.departmentId, t.lines.map(l => l.quantity)]), [['cancel', 'bar', [1]]], 'only the sent americano is cancelled at the bar');
+    assert.equal(orderTotals(closed).total, 0);
+});
+
+test('a partly paid bill cannot be cancelled whole', () => {
+    let s = twoTables();
+    const o = open(s, 'table-2');
+    s = applyAction(s, 'pay', {orderId: o.id, method: 'cash', amount: 100});
+    assert.throws(() => applyAction(s, 'voidOrder', {orderId: o.id, reason: 'x'}, true), /ნაწილობრივი/);
+});

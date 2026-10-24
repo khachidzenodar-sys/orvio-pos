@@ -294,6 +294,30 @@ export function applyAction(original: PosState, action: string, p: Record<string
             log(`${o.id}: ${l.name} × ${q}; ${reason}`);
             break;
         }
+        // Cancels every remaining item at once and frees the table; sent items go to the departments as cancellations.
+        case 'voidOrder': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const o = getOrder();
+            editable(o);
+            const reason = text(p.reason, 'მიუთითეთ გაუქმების მიზეზი');
+            const cancelled: { line: Line; quantity: number }[] = [];
+            for (const l of o.lines) {
+                const left = l.quantity - l.voidQuantity;
+                if (left <= 0) continue;
+                const cancel = l.sentQuantity;
+                l.voidQuantity = l.quantity;
+                l.sentQuantity = 0;
+                cancelled.push({ line: l, quantity: cancel });
+            }
+            assert(cancelled.length, 'გასაუქმებელი პოზიცია არ არის');
+            ticket(o, cancelled, 'cancel');
+            delete o.discountAmount;
+            o.discountPercent = 0;
+            o.status = 'closed';
+            o.closedAt = now;
+            log(`${o.id}: მთლიანი შეკვეთა გაუქმდა; ${reason}`);
+            break;
+        }
         case 'discount': {
             assert(manager, 'მენეჯერის კოდი აუცილებელია');
             const o = getOrder();
