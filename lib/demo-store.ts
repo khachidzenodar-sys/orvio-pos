@@ -6,7 +6,7 @@ export const DEFAULT_DEMO_PIN = '1234';
 export type DemoSnapshot = {userId:string; version:number; configured:true; state:PosState};
 export type DemoDocument = DemoSnapshot & {schema:1; pin:string; failures:number; blockedUntil:number};
 type Lock = <T>(work:()=>Promise<T>)=>Promise<T>;
-const managerActions:string[] = ['discount','voidItem','voidOrder','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo','saveStaff','archiveStaff','setFeature',...INVENTORY_ACTIONS];
+const managerActions:string[] = ['discount','voidItem','voidOrder','deleteProduct','changePin','saveTable','saveZone','saveDepartment','deleteTable','deleteDepartment','closeDay','saveFloorPlan','setProductPhoto','setReceiptLogo','saveStaff','archiveStaff','setFeature',...INVENTORY_ACTIONS];
 const storageError = 'დემოს შენახვა ვერ მოხერხდა. დაუშვით ამ საიტისთვის ბრაუზერში მონაცემების შენახვა.';
 const corruptError = 'შენახული დემოს მონაცემები დაზიანებულია. ახალი დასაწყისისთვის გამოიყენეთ „დემოს განულება“.';
 const quotaError = 'ბრაუზერის მეხსიერება გავსებულია — ცვლილება ვერ შეინახა. წაშალეთ ზოგიერთი ფოტო.';

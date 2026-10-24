@@ -561,6 +561,16 @@ export function applyAction(original: PosState, action: string, p: Record<string
                 target.push(value as Table);
             break;
         }
+        // Takes a dish off the menu for good; past bills keep their own copy of its name and price.
+        case 'deleteProduct': {
+            assert(manager, 'მენეჯერის კოდი აუცილებელია');
+            const product = s.products.find(x => x.id === p.id);
+            assert(product, 'კერძი ვერ მოიძებნა');
+            s.products = s.products.filter(x => x !== product);
+            s.inventory.recipes = s.inventory.recipes.filter(r => r.productId !== product.id);
+            log(`${product.name} ამოღებულია მენიუდან`);
+            break;
+        }
         case 'deleteTable':
         case 'deleteDepartment': {
             assert(manager, 'მენეჯერის კოდი აუცილებელია');

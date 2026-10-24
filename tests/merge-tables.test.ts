@@ -63,3 +63,17 @@ test('a partly paid bill cannot be cancelled whole', () => {
     s = applyAction(s, 'pay', {orderId: o.id, method: 'cash', amount: 100});
     assert.throws(() => applyAction(s, 'voidOrder', {orderId: o.id, reason: 'x'}, true), /ნაწილობრივი/);
 });
+
+test('a dish can be taken off the menu with its recipe; bills keep their own copy', () => {
+    let s = twoTables();
+    s.inventory.items.push({id: 'coffee', name: 'ყავა', unit: 'g', kind: 'ingredient', quantity: 0, value: 0, avgCost: 0});
+    s = applyAction(s, 'saveRecipe', {productId: 'product-5', lines: [{itemId: 'coffee', quantity: 9}]}, true);
+    assert.ok(s.inventory.recipes.some(r => r.productId === 'product-5'));
+    assert.throws(() => applyAction(s, 'deleteProduct', {id: 'product-5'}), /მენეჯერის/);
+    s = applyAction(s, 'deleteProduct', {id: 'product-5'}, true);
+    assert.ok(!s.products.some(p => p.id === 'product-5'));
+    assert.ok(!s.inventory.recipes.some(r => r.productId === 'product-5'));
+    assert.equal(open(s, 'table-2').lines[0].name, 'ამერიკანო', 'the open bill still shows the dish');
+    assert.throws(() => applyAction(s, 'addItem', {orderId: open(s, 'table-2').id, productId: 'product-5', quantity: 1}));
+    assert.throws(() => applyAction(s, 'deleteProduct', {id: 'product-5'}, true), /ვერ მოიძებნა/);
+});

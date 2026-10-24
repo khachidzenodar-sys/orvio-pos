@@ -258,3 +258,4 @@ input:focus,select:focus,textarea:focus{border-color:#a48140;box-shadow:0 0 0 3p
 @media(max-width:760px){.salesbar{grid-template-columns:90px 1fr auto;gap:8px}}
 .receipt .receipthead .voidorder{padding:7px 11px;font-size:12px;color:#b3261e;border-color:#efc4bf;background:#fff}.receipt .receipthead .voidorder:hover:not(:disabled){background:#fdecea}
 .receipt .receipthead h2,.receipt .receipthead .voidorder{white-space:nowrap}.receipt .receipthead .flex{gap:8px}
+.rowactions{gap:6px;flex-wrap:nowrap}.dangerbtn{color:#b3261e;border-color:#efc4bf}.dangerbtn:hover{background:#fdecea;border-color:#e57373}
