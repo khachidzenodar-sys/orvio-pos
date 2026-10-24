@@ -11,6 +11,7 @@ pub fn run() {
             storage::storage_write,
             backup::backup_save,
             backup::backup_open,
+            backup::export_save,
             printer::list_printers,
             printer::print_raw
         ])

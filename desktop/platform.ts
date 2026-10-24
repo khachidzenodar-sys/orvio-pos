@@ -2,7 +2,7 @@ import {createDemoStore} from '@/lib/demo-store';
 import {createSerialQueue} from '@/lib/serial-queue';
 import {tauriInvoke} from '@/lib/adapters/tauri-invoke';
 import {createTauriFileStorage} from '@/lib/adapters/tauri-file-storage';
-import {createTauriBackupFiles} from '@/lib/adapters/tauri-backup-files';
+import {createTauriBackupFiles, createTauriExportFiles} from '@/lib/adapters/tauri-backup-files';
 import {createEscPosPrinter} from '@/lib/adapters/escpos-printer';
 import {renderRows} from '@/lib/printing/canvas-renderer';
 import type {Platform} from '@/lib/ports/platform';
@@ -18,4 +18,5 @@ export const desktopPlatform: Platform = {
   printer: escpos,
   printerSettings: escpos,
   backupFiles: createTauriBackupFiles(tauriInvoke),
+  exportFiles: createTauriExportFiles(tauriInvoke),
 };

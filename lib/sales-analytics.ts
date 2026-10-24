@@ -50,3 +50,24 @@ export function salesAnalytics(state: PosState, include: (order: Order) => boole
     const byRevenue = (a: SalesRow, b: SalesRow) => b.revenue - a.revenue;
     return {departments: [...departments.values()].map(row).sort(byRevenue), products: [...products.values()].map(row).sort(byRevenue), total: row(total)};
 }
+
+export type MenuClass = 'star' | 'plowhorse' | 'puzzle' | 'dog' | 'unknown';
+export type MenuEngineering = {rows: (SalesRow & {group: MenuClass; unitProfit: number | null})[]; popularityLine: number; profitLine: number | null};
+
+/** Menu engineering: a dish is popular when it sells at least 70% of an equal share, and profitable when
+ *  its profit per portion is at least the average across costed dishes. Dishes without a recipe stay unknown. */
+export function menuEngineering(products: SalesRow[]): MenuEngineering {
+    const costed = products.filter(r => r.profit !== null && r.uncosted === 0);
+    const quantity = products.reduce((sum, r) => sum + r.quantity, 0);
+    const popularityLine = products.length ? quantity / products.length * 0.7 : 0;
+    const costedQuantity = costed.reduce((sum, r) => sum + r.quantity, 0);
+    const profitLine = costedQuantity ? costed.reduce((sum, r) => sum + r.profit!, 0) / costedQuantity : null;
+    const rows = products.map(r => {
+        const unitProfit = r.profit !== null && r.uncosted === 0 && r.quantity ? r.profit / r.quantity : null;
+        const popular = r.quantity >= popularityLine;
+        const group: MenuClass = unitProfit === null || profitLine === null ? 'unknown'
+            : unitProfit >= profitLine ? (popular ? 'star' : 'puzzle') : (popular ? 'plowhorse' : 'dog');
+        return {...r, group, unitProfit};
+    });
+    return {rows, popularityLine, profitLine};
+}

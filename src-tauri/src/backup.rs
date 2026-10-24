@@ -58,6 +58,33 @@ pub async fn backup_save(
     .await
 }
 
+/// Saves a generated report (an .xlsx workbook) chosen in a Save dialog; false when cancelled.
+#[tauri::command]
+pub async fn export_save(
+    app: tauri::AppHandle,
+    default_name: String,
+    bytes: Vec<u8>,
+) -> Result<bool, String> {
+    if bytes.len() as u64 > MAX_BACKUP_BYTES {
+        return Err("ფაილი ძალიან დიდია".into());
+    }
+    run_blocking(move || {
+        let Some(file) = app
+            .dialog()
+            .file()
+            .set_title("Excel ფაილის შენახვა")
+            .add_filter("Excel", &["xlsx"])
+            .set_file_name(default_name)
+            .blocking_save_file()
+        else {
+            return Ok(false);
+        };
+        fs::write(to_path(file)?, bytes).map_err(|e| format!("ფაილის შენახვა ვერ მოხერხდა ({e})"))?;
+        Ok(true)
+    })
+    .await
+}
+
 /// Returns None when the user cancels the Open dialog.
 #[tauri::command]
 pub async fn backup_open(app: tauri::AppHandle) -> Result<Option<String>, String> {
