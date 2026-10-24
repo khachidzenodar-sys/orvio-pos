@@ -25,7 +25,7 @@ export function TicketCards({state, dept, busy, onPrint}: Props) {
         // A dish routed to two departments sits on both tickets; list it once.
         const lines = [...new Map(group.flatMap(x => x.lines).map(l => [l.lineId, l])).values()];
         return <article className={`ticket ${t.type === 'cancel' ? 'cancel' : ''}`} key={t.id}>
-            <div className="receipthead"><h2>მაგიდა {t.tableName}</h2><span className="badge">{t.type === 'cancel' ? 'გაუქმება' : 'შეკვეთა'}</span></div>
+            <div className="receipthead"><h2>{t.tableName}</h2><span className="badge">{t.type === 'cancel' ? 'გაუქმება' : 'შეკვეთა'}</span></div>
             <b>{group.map(x => state.departments.find(d => d.id === x.departmentId)?.name).filter(Boolean).join(' · ')}</b>
             <small>{when(t.createdAt)}</small>
             {t.note && <p className="ticketnote">! {t.note}</p>}

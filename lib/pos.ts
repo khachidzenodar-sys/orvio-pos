@@ -323,6 +323,24 @@ export function applyAction(original: PosState, action: string, p: Record<string
             o.tableId = String(p.tableId);
             break;
         }
+        // Joins another table's open order into this one; that table becomes free. Sent items stay sent.
+        case 'mergeOrders': {
+            const o = getOrder();
+            editable(o);
+            const other = s.orders.find(x => x.id === p.sourceOrderId && x.status === 'open');
+            assert(other && other.id !== o.id, 'გასაერთიანებელი მაგიდა ვერ მოიძებნა');
+            assert(!other.payments.length, 'ნაწილობრივ გადახდილ მაგიდას ვერ გააერთიანებთ');
+            assert(!other.discountPercent && other.discountAmount === undefined, 'ჯერ მოხსენით ფასდაკლება გასაერთიანებელ მაგიდაზე');
+            o.lines.push(...other.lines);
+            other.lines = [];
+            other.status = 'closed';
+            other.closedAt = now;
+            // The joined table's ticket notes now belong to this bill's guest check.
+            for (const t of s.tickets) if (t.orderId === other.id) t.orderId = o.id;
+            const name = (tableId: string) => s.tables.find(t => t.id === tableId)?.name ?? tableId;
+            log(`${name(other.tableId)} → ${name(o.tableId)}`);
+            break;
+        }
         // Records the cash and card parts together; the whole split fails if either part is invalid.
         case 'splitPay': {
             const o = getOrder();
